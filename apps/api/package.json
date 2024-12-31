@@ -1,0 +1,27 @@
+{
+  "name": "api",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev src/index.ts",
+    "deploy": "wrangler deploy src/index.ts",
+    "db:generate": "drizzle-kit generate:sqlite",
+    "db:push": "wrangler d1 execute admin-db --local --file=./drizzle/0000_chilly_surge.sql",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.1.11",
+    "drizzle-orm": "^0.29.3",
+    "drizzle-zod": "^0.5.1",
+    "hono": "^3.11.7",
+    "uuid": "^9.0.1",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20231218.0",
+    "@types/uuid": "^9.0.7",
+    "drizzle-kit": "^0.20.9",
+    "tsx": "^4.19.2",
+    "wrangler": "^3.22.1"
+  }
+}

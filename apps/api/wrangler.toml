@@ -1,0 +1,14 @@
+name = "admin-cloudflare-api"
+main = "src/index.ts"
+compatibility_date = "2023-12-30"
+
+[vars]
+ENVIRONMENT = "development"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "admin-db"
+database_id = "06b0c03f-3607-45e1-af19-9a35a83be1f7"
+
+[dev]
+port = 8787
