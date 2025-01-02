@@ -1,67 +1,70 @@
-# Shadcn Admin Dashboard
+# Admin Dashboard
 
-Admin Dashboard UI crafted with Shadcn and Vite. Built with responsiveness and accessibility in mind.
+This is the web frontend for the admin dashboard, built with React and Vite.
 
-![alt text](public/images/shadcn-admin.png)
+## Authentication
 
-I've been creating dashboard UIs at work and for my personal projects. I always wanted to make a reusable collection of dashboard UI for future projects; and here it is now. While I've created a few custom components, some of the code is directly adapted from ShadcnUI examples.
+This app uses [Clerk](https://clerk.dev/) for authentication. You'll need to set up a Clerk account and create a new application to get your API keys.
 
-> This is not a starter project (template) though. I'll probably make one in the future.
+### Setting up Clerk
 
-## Features
+1. Create a Clerk account at https://clerk.dev/
+2. Create a new application in the Clerk dashboard
+3. Get your API keys from the Clerk dashboard:
+   - `CLERK_PUBLISHABLE_KEY`
 
-- Light/dark mode
-- Responsive
-- Accessible
-- With built-in Sidebar component
-- Global Search Command
-- 10+ pages
-- Extra custom components
+### Setting up environment variables
 
-## Tech Stack
+1. Copy the example environment file:
+   ```bash
+   cp .env.example .env
+   ```
 
-**UI:** [ShadcnUI](https://ui.shadcn.com) (TailwindCSS + RadixUI)
+2. Update the environment variables in `.env`:
+   ```env
+   VITE_API_URL=http://localhost:8787/api
+   VITE_CLERK_PUBLISHABLE_KEY=your_publishable_key
+   ```
 
-**Build Tool:** [Vite](https://vitejs.dev/)
+## Development
 
-**Routing:** [TanStack Router](https://tanstack.com/router/latest)
+1. Install dependencies:
+   ```bash
+   pnpm install
+   ```
 
-**Type Checking:** [TypeScript](https://www.typescriptlang.org/)
+2. Start the development server:
+   ```bash
+   pnpm dev
+   ```
 
-**Linting/Formatting:** [Eslint](https://eslint.org/) & [Prettier](https://prettier.io/)
+## Protected Routes
 
-**Icons:** [Tabler Icons](https://tabler.io/icons)
+All routes under `/app/*` require authentication. Users will be redirected to the sign-in page if they're not authenticated.
 
-## Run Locally
+## Authentication State
 
-Clone the project
+You can access the authentication state and user information using Clerk's React hooks:
 
-```bash
-  git clone https://github.com/satnaing/shadcn-admin.git
+```tsx
+import { useAuth, useUser } from '@clerk/clerk-react'
+
+function MyComponent() {
+  const { isLoaded, isSignedIn } = useAuth()
+  const { user } = useUser()
+
+  if (!isLoaded) {
+    return <div>Loading...</div>
+  }
+
+  if (!isSignedIn) {
+    return <div>Please sign in</div>
+  }
+
+  return <div>Welcome, {user.firstName}!</div>
+}
 ```
 
-Go to the project directory
+## API Authentication
 
-```bash
-  cd shadcn-admin
-```
-
-Install dependencies
-
-```bash
-  pnpm install
-```
-
-Start the server
-
-```bash
-  pnpm run dev
-```
-
-## Author
-
-Crafted with 🤍 by [@satnaing](https://github.com/satnaing)
-
-## License
-
-Licensed under the [MIT License](https://choosealicense.com/licenses/mit/)
+API calls are automatically authenticated using Clerk's session token. The token is added to all requests in the `Authorization` header.

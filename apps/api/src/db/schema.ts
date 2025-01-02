@@ -1,57 +1,63 @@
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-zod'
+import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { z } from 'zod'
+import { getCurrentTimestamp } from './utils'
 
-// Enums
-export enum UserRole {
-  SUPERADMIN = 'superadmin',
-  ADMIN = 'admin',
-  CASHIER = 'cashier',
-  MANAGER = 'manager',
-}
+// Define user roles and status as string literals
+export const UserRole = {
+  SUPERADMIN: 'superadmin',
+  ADMIN: 'admin',
+  MANAGER: 'manager',
+  CASHIER: 'cashier',
+} as const
 
-export enum UserStatus {
-  ACTIVE = 'active',
-  INACTIVE = 'inactive',
-  INVITED = 'invited',
-  SUSPENDED = 'suspended',
-}
+export type UserRoleType = typeof UserRole[keyof typeof UserRole]
 
-// Database schema
+export const UserStatus = {
+  ACTIVE: 'active',
+  INACTIVE: 'inactive',
+  INVITED: 'invited',
+  SUSPENDED: 'suspended',
+} as const
+
+export type UserStatusType = typeof UserStatus[keyof typeof UserStatus]
+
+// Create the users table
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
-  firstName: text('firstName').notNull(),
-  lastName: text('lastName').notNull(),
-  username: text('username').notNull().unique(),
-  email: text('email').notNull().unique(),
-  phoneNumber: text('phoneNumber').notNull(),
-  status: text('status', { enum: Object.values(UserStatus) }).notNull().default(UserStatus.INVITED),
-  role: text('role', { enum: Object.values(UserRole) }).notNull().default(UserRole.CASHIER),
-  createdAt: text('createdAt').notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updatedAt').notNull().default(sql`CURRENT_TIMESTAMP`),
+  username: text('username').notNull(),
+  email: text('email').notNull(),
+  firstName: text('first_name').notNull(),
+  lastName: text('last_name').notNull(),
+  role: text('role', { enum: ['superadmin', 'admin', 'manager', 'cashier'] }).notNull(),
+  status: text('status', { enum: ['active', 'inactive', 'invited', 'suspended'] }).notNull().default('invited'),
+  phoneNumber: text('phone_number'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
 })
 
-// Zod Schemas for type validation
+// Migrations table
+export const migrations = sqliteTable('migrations', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull().unique(),
+  appliedAt: text('applied_at').notNull(),
+})
+
+// Create Zod schemas for validation
 export const insertUserSchema = createInsertSchema(users, {
-  status: z.enum(Object.values(UserStatus) as [string, ...string[]]),
-  role: z.enum(Object.values(UserRole) as [string, ...string[]]),
+  email: z.string().email(),
+  firstName: z.string().min(2),
+  lastName: z.string().min(2),
+  role: z.enum(['superadmin', 'admin', 'manager', 'cashier'] as const),
+  status: z.enum(['active', 'inactive', 'invited', 'suspended'] as const),
 })
 
-export const selectUserSchema = createSelectSchema(users, {
-  status: z.enum(Object.values(UserStatus) as [string, ...string[]]),
-  role: z.enum(Object.values(UserRole) as [string, ...string[]]),
-})
+export const selectUserSchema = createSelectSchema(users)
 
-export const updateUserSchema = z.object({
-  firstName: z.string().min(1).optional(),
-  lastName: z.string().min(1).optional(),
-  username: z.string().min(1).optional(),
-  email: z.string().email().optional(),
-  phoneNumber: z.string().optional(),
-  status: z.nativeEnum(UserStatus).optional(),
-  role: z.nativeEnum(UserRole).optional(),
-})
+export const updateUserSchema = insertUserSchema.partial()
 
+// Types
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
+export type Migration = typeof migrations.$inferSelect

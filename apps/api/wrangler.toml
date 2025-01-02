@@ -1,14 +1,35 @@
+# Wrangler configuration
 name = "admin-cloudflare-api"
 main = "src/index.ts"
-compatibility_date = "2023-12-30"
+compatibility_date = "2023-12-01"
+compatibility_flags = ["nodejs_compat"]
 
-[vars]
-ENVIRONMENT = "development"
+# Development environment
+[env.development]
+name = "admin-cloudflare-api-dev"
+compatibility_date = "2024-01-01"
 
-[[d1_databases]]
+# Development server configuration
+[dev]
+port = 8787
+ip = "localhost"    # Only listen on localhost
+
+# D1 Database for development
+[[env.development.d1_databases]]
 binding = "DB"
 database_name = "admin-db"
 database_id = "06b0c03f-3607-45e1-af19-9a35a83be1f7"
+migrations_dir = "drizzle"
 
-[dev]
-port = 8787
+# Environment variables
+[env.development.vars]
+ENVIRONMENT = "development"
+
+# Production environment
+[env.production]
+name = "admin-cloudflare-api-prod"
+vars = { ENVIRONMENT = "production" }
+
+# Environment variables
+[vars]
+ENVIRONMENT = "development"

@@ -1,24 +1,20 @@
-import { AxiosError } from 'axios'
-import { toast } from '@/hooks/use-toast'
+interface ApiError {
+  title: string
+  detail?: string
+  status: number
+}
 
-export function handleServerError(error: unknown) {
-  // eslint-disable-next-line no-console
-  console.log(error)
+export function handleServerError(error: unknown): string {
+  let errMsg = 'An unexpected error occurred'
 
-  let errMsg = 'Something went wrong!'
-
-  if (
-    error &&
-    typeof error === 'object' &&
-    'status' in error &&
-    Number(error.status) === 204
-  ) {
-    errMsg = 'Content not found.'
+  if (error instanceof Error) {
+    errMsg = error.message
+  } else if (error instanceof Response) {
+    errMsg = `HTTP error! status: ${error.status}`
+  } else if (typeof error === 'object' && error !== null) {
+    const apiError = error as ApiError
+    errMsg = apiError.title || apiError.detail || errMsg
   }
 
-  if (error instanceof AxiosError) {
-    errMsg = error.response?.data.title
-  }
-
-  toast({ variant: 'destructive', title: errMsg })
+  return errMsg
 }

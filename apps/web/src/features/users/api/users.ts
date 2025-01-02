@@ -1,98 +1,86 @@
-import { User, GetUsersResponse, UserCreate, UserUpdate } from '../data/schema'
-import api from '@/lib/api'
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '@clerk/clerk-react'
+import useApi from '@/lib/api'
+import type { User, UserCreate, UserUpdate } from '@admin-cloudflare/api-types'
 
-interface GetUsersParams {
-  cursor?: string | null
-  limit?: number
-  sortField?: string
-  sortOrder?: 'asc' | 'desc'
-}
-
-// Query keys
+// Query keys for React Query
 export const userKeys = {
   all: ['users'] as const,
   lists: () => [...userKeys.all, 'list'] as const,
+  list: (filters: string) => [...userKeys.lists(), { filters }] as const,
   details: () => [...userKeys.all, 'detail'] as const,
   detail: (id: string) => [...userKeys.details(), id] as const,
-  sorted: (sortField?: string, sortOrder?: string) => 
-    [...userKeys.lists(), { sortField, sortOrder }] as const,
 }
 
-// API functions
-export async function getUsers(params: GetUsersParams) {
-  const response = await api.get('/users', { params })
-  return response.data
-}
+// Get users query
+export function useUsers() {
+  const { getToken } = useAuth()
 
-export async function createUser(data: UserCreate) {
-  const response = await api.post('/users', data)
-  return response.data
-}
-
-export async function updateUser(id: string, data: UserUpdate) {
-  const response = await api.patch(`/users/${id}`, data)
-  return response.data
-}
-
-export async function deleteUser(id: string) {
-  const response = await api.delete(`/users/${id}`)
-  return response.data
-}
-
-// Hooks
-export function useUsers(limit: number = 50, sortField?: string, sortOrder?: 'asc' | 'desc') {
-  const queryClient = useQueryClient()
-  
-  return useInfiniteQuery<GetUsersResponse>({
-    queryKey: userKeys.sorted(sortField, sortOrder),
-    queryFn: async ({ pageParam }) => {
-      const params: GetUsersParams = {
-        cursor: pageParam as string | null,
-        limit,
-        sortField,
-        sortOrder,
-      }
-      
-      return getUsers(params)
+  return useQuery<User[]>({
+    queryKey: userKeys.lists(),
+    queryFn: async () => {
+      const token = await getToken()
+      if (!token) throw new Error('No auth token available')
+      const apiWithAuth = useApi(token)
+      return apiWithAuth.users.list()
     },
-    initialPageParam: null as string | null,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
-    refetchOnMount: true,
-    gcTime: 0,
-    staleTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 30000
   })
 }
 
+// Create user mutation
 export function useCreateUser() {
+  const { getToken } = useAuth()
   const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: createUser,
+
+  return useMutation<User, Error, UserCreate>({
+    mutationFn: async (data: UserCreate) => {
+      const token = await getToken()
+      if (!token) throw new Error('No auth token available')
+      const apiWithAuth = useApi(token)
+      return apiWithAuth.users.create(data)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: userKeys.lists() })
     },
   })
 }
 
+// Update user mutation
 export function useUpdateUser() {
+  const { getToken } = useAuth()
   const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<User> }) =>
-      updateUser(id, data),
-    onSuccess: () => {
+
+  return useMutation<User, Error, { id: string; data: UserUpdate }>({
+    mutationFn: async ({ id, data }) => {
+      const token = await getToken()
+      if (!token) throw new Error('No auth token available')
+      const apiWithAuth = useApi(token)
+      return apiWithAuth.users.update(id, data)
+    },
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: userKeys.detail(id) })
       queryClient.invalidateQueries({ queryKey: userKeys.lists() })
     },
   })
 }
 
+// Delete user mutation
 export function useDeleteUser() {
+  const { getToken } = useAuth()
   const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: deleteUser,
-    onSuccess: () => {
+
+  return useMutation<void, Error, string>({
+    mutationFn: async (id: string) => {
+      const token = await getToken()
+      if (!token) throw new Error('No auth token available')
+      const apiWithAuth = useApi(token)
+      return apiWithAuth.users.delete(id)
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: userKeys.detail(id) })
       queryClient.invalidateQueries({ queryKey: userKeys.lists() })
     },
   })

@@ -151,8 +151,7 @@ export function UsersActionDialog({ currentRow, open, onOpenChange }: Props) {
           username: values.username,
           email: values.email,
           phoneNumber: values.phoneNumber,
-          role: values.role,
-          password: values.password,
+          role: values.role
         })
         toast({
           title: 'Success',

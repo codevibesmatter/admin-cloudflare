@@ -13,6 +13,9 @@
     "knip": "knip"
   },
   "dependencies": {
+    "@admin-cloudflare/api-types": "workspace:*",
+    "@clerk/clerk-react": "^5.21.0",
+    "@clerk/themes": "^2.2.3",
     "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-alert-dialog": "^1.1.2",
     "@radix-ui/react-avatar": "^1.1.1",
@@ -37,11 +40,11 @@
     "@tanstack/react-query": "^5.62.11",
     "@tanstack/react-router": "^1.86.1",
     "@tanstack/react-table": "^8.20.6",
-    "axios": "^1.7.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",
     "date-fns": "^4.1.0",
+    "hono": "^4.6.15",
     "js-cookie": "^3.0.5",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
