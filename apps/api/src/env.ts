@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { D1Database } from '@cloudflare/workers-types'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import type { Logger } from 'pino'
+import type { Hono } from 'hono'
 import * as schema from './db/schema'
 
 // Define environment schema with Zod

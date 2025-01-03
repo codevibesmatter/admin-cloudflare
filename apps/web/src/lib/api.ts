@@ -1,5 +1,5 @@
 import { hc } from 'hono/client'
-import type { AppType, User, UserCreate, UserUpdate } from '@admin-cloudflare/api-types'
+import type { AppType, User, UserCreate, UserUpdate, GetUsersResponse } from '@admin-cloudflare/api-types'
 
 // Base URL from environment variable
 const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8787'
@@ -34,7 +34,7 @@ export function useApi(token?: string) {
   return {
     users: {
       list: () => client.users.$get()
-        .then((res: Response) => res.json() as Promise<User[]>)
+        .then((res: Response) => res.json() as Promise<GetUsersResponse>)
         .catch((error: Error & { status?: number }) => {
           throw new APIError(
             error.message || 'Failed to fetch users',
@@ -77,6 +77,26 @@ export function useApi(token?: string) {
         .catch((error: Error & { status?: number }) => {
           throw new APIError(
             error.message || 'Failed to delete user',
+            error.status || 500,
+            'API_ERROR'
+          )
+        }),
+      syncClerk: (id: string) => client.users[':id']['sync-clerk'].$post({ 
+        param: { id } 
+      })
+        .then((res: Response) => res.json() as Promise<User>)
+        .catch((error: Error & { status?: number }) => {
+          throw new APIError(
+            error.message || 'Failed to sync user with Clerk',
+            error.status || 500,
+            'API_ERROR'
+          )
+        }),
+      syncFromClerk: () => client.users['sync-from-clerk'].$post()
+        .then((res: Response) => res.json() as Promise<{ success: true }>)
+        .catch((error: Error & { status?: number }) => {
+          throw new APIError(
+            error.message || 'Failed to sync from Clerk',
             error.status || 500,
             'API_ERROR'
           )

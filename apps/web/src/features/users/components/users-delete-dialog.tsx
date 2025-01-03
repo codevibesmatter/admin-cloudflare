@@ -17,11 +17,12 @@ interface Props {
 
 export function UsersDeleteDialog({ open, onOpenChange, currentRow }: Props) {
   const [value, setValue] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleDelete = () => {
-    if (value.trim() !== currentRow.username) return
-
-    onOpenChange(false)
+  const handleDelete = async () => {
+    setIsLoading(true)
+    await onOpenChange(false)
+    setIsLoading(false)
     toast({
       title: 'The following user has been deleted:',
       description: (
@@ -81,6 +82,7 @@ export function UsersDeleteDialog({ open, onOpenChange, currentRow }: Props) {
       }
       confirmText='Delete'
       destructive
+      isLoading={isLoading}
     />
   )
 }

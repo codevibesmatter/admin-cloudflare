@@ -1,14 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useApi } from '@/lib/api'
-import type { GetUsersResponse, UserCreate, UserUpdate } from '@admin-cloudflare/api-types'
+import type { GetUsersResponse, UserCreate, UserUpdate, User } from '@admin-cloudflare/api-types'
+import { useAuth } from '@clerk/clerk-react'
 
 // Query keys for React Query
 export const userKeys = {
   all: ['users'] as const,
   lists: () => [...userKeys.all, 'list'] as const,
   list: (filters: string) => [...userKeys.lists(), { filters }] as const,
-  details: () => [...userKeys.all, 'detail'] as const,
-  detail: (id: string) => [...userKeys.details(), id] as const,
+  details: (id: string) => [...userKeys.all, 'detail', id] as const,
 }
 
 // List users hook
@@ -29,7 +29,7 @@ export function useUser(id: string) {
   const api = useApi()
   
   return useQuery({
-    queryKey: userKeys.detail(id),
+    queryKey: userKeys.details(id),
     queryFn: () => api.users.get(id)
   })
 }
@@ -55,7 +55,7 @@ export function useUpdateUser() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UserUpdate }) => api.users.update(id, data),
     onSuccess: (_, { id }) => {
-      queryClient.invalidateQueries({ queryKey: userKeys.detail(id) })
+      queryClient.invalidateQueries({ queryKey: userKeys.details(id) })
       queryClient.invalidateQueries({ queryKey: userKeys.lists() })
     }
   })
@@ -69,8 +69,22 @@ export function useDeleteUser() {
   return useMutation({
     mutationFn: (id: string) => api.users.delete(id),
     onSuccess: (_, id) => {
-      queryClient.invalidateQueries({ queryKey: userKeys.detail(id) })
+      queryClient.invalidateQueries({ queryKey: userKeys.details(id) })
       queryClient.invalidateQueries({ queryKey: userKeys.lists() })
+    }
+  })
+}
+
+// Sync user with Clerk mutation
+export function useSyncUserWithClerk() {
+  const api = useApi()
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (id: string) => api.users.syncClerk(id),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: userKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: userKeys.details(data.id) })
     }
   })
 }

@@ -9,28 +9,25 @@ export const userRoleSchema = z.enum(['superadmin', 'admin', 'manager', 'cashier
 export const userStatusSchema = z.enum(['active', 'inactive', 'invited', 'suspended'])
 
 export const userCreateSchema = z.object({
-  username: z.string().min(3),
   email: z.string().email(),
   firstName: z.string(),
   lastName: z.string(),
-  role: userRoleSchema,
-  phoneNumber: z.string().optional(),
+  role: z.enum(['superadmin', 'admin', 'manager', 'cashier']),
 })
 
 export const userUpdateSchema = userCreateSchema.partial().extend({
-  status: userStatusSchema.optional(),
+  status: z.enum(['active', 'inactive', 'invited', 'suspended']).optional(),
 })
 
 // User types
 export interface User {
   id: string
-  username: string
   email: string
   firstName: string
   lastName: string
-  role: z.infer<typeof userRoleSchema>
-  status: z.infer<typeof userStatusSchema>
-  phoneNumber?: string
+  role: 'superadmin' | 'admin' | 'manager' | 'cashier'
+  status: 'active' | 'inactive' | 'invited' | 'suspended'
+  clerkId?: string
   createdAt: string
   updatedAt: string
 }
@@ -39,7 +36,12 @@ export type UserCreate = z.infer<typeof userCreateSchema>
 export type UserUpdate = z.infer<typeof userUpdateSchema>
 
 export interface GetUsersResponse {
-  users: User[]
+  data: {
+    users: User[]
+  }
+  meta: {
+    timestamp: string
+  }
 }
 
 // Environment type
@@ -77,12 +79,27 @@ export type Routes = {
       response: { success: true }
     }
   }
+  '/users/:id/sync-clerk': {
+    post: {
+      response: User
+    }
+  }
+  '/users/sync-from-clerk': {
+    post: {
+      response: { success: true }
+    }
+  }
 }
 
 // Chain the handlers for proper type inference
 const route = app
   .get('/users', (c) => c.json<GetUsersResponse>({
-    users: []
+    data: {
+      users: [],
+    },
+    meta: {
+      timestamp: new Date().toISOString()
+    }
   }))
   .post('/users', 
     zValidator('json', userCreateSchema),
@@ -94,6 +111,12 @@ const route = app
     (c) => c.json<User>({} as User)
   )
   .delete('/users/:id', 
+    (c) => c.json<{ success: true }>({ success: true })
+  )
+  .post('/users/:id/sync-clerk',
+    (c) => c.json<User>({} as User)
+  )
+  .post('/users/sync-from-clerk',
     (c) => c.json<{ success: true }>({ success: true })
   )
 

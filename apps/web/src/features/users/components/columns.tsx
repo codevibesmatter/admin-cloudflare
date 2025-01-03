@@ -16,12 +16,12 @@ import { formatDate } from '@/lib/utils'
 
 export const columns: ColumnDef<User>[] = [
   {
-    accessorKey: 'email',
-    header: 'Email',
+    accessorKey: 'id',
+    header: 'ID',
   },
   {
-    accessorKey: 'username',
-    header: 'Username',
+    accessorKey: 'email',
+    header: 'Email',
   },
   {
     accessorKey: 'firstName',
@@ -53,6 +53,10 @@ export const columns: ColumnDef<User>[] = [
     accessorKey: 'createdAt',
     header: 'Created At',
     cell: ({ row }) => formatDate(row.getValue('createdAt')),
+  },
+  {
+    accessorKey: 'updatedAt',
+    header: 'Updated At',
   },
   {
     id: 'actions',

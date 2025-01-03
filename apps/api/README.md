@@ -67,6 +67,28 @@ All routes are mounted under `/api` prefix:
 - Connection is initialized per-request in middleware
 - Schema is defined in `db/schema.ts`
 
+#### Schema Management Best Practices
+
+1. **Schema Verification**
+   ```typescript
+   // DO: Verify actual D1 table structure
+   wrangler d1 execute DB_NAME --command="SELECT * FROM sqlite_master WHERE type='table'"
+   
+   // DON'T: Assume schema.ts matches database
+   ```
+
+2. **Schema Synchronization**
+   - Always verify actual D1 table structure before making schema changes
+   - Keep schema.ts in sync with actual D1 table structure
+   - When syncing with external services (e.g., Clerk), only insert fields that exist in D1
+   - Default values in schema should match D1 defaults (e.g., 'active' vs 'invited')
+
+3. **Common Pitfalls**
+   - Column naming mismatches between code and database
+   - Missing or extra columns in schema.ts
+   - Incorrect default values
+   - Attempting to insert non-existent columns
+
 ### Best Practices
 
 1. **Error Handling**

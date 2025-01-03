@@ -26,15 +26,14 @@ export type UserStatusType = typeof UserStatus[keyof typeof UserStatus]
 // Create the users table
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
-  username: text('username').notNull(),
+  clerkId: text('clerk_id').unique(),
   email: text('email').notNull(),
   firstName: text('first_name').notNull(),
   lastName: text('last_name').notNull(),
-  role: text('role', { enum: ['superadmin', 'admin', 'manager', 'cashier'] }).notNull(),
-  status: text('status', { enum: ['active', 'inactive', 'invited', 'suspended'] }).notNull().default('invited'),
-  phoneNumber: text('phone_number'),
-  createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
+  role: text('role', { enum: ['superadmin', 'admin', 'manager', 'cashier'] }).notNull().default('cashier'),
+  status: text('status', { enum: ['active', 'inactive', 'invited', 'suspended'] }).notNull().default('active'),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
 
 // Migrations table

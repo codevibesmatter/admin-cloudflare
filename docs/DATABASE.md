@@ -61,4 +61,92 @@ The application uses Cloudflare D1 with Drizzle ORM for type-safe database opera
 4. **Query Building**: Type-safe query building with Drizzle's query builder
 5. **Timestamps**: Automatic handling of createdAt/updatedAt fields
 
+### Migration Workflow
+
+1. **Making Schema Changes**
+   - Add or modify schema in `apps/api/src/db/schema.ts`
+   - Only add new columns/tables, never modify existing ones directly
+   - Always make columns nullable when adding to existing tables
+
+2. **Generating Migrations**
+   ```bash
+   cd apps/api
+   pnpm drizzle-kit generate:sqlite --schema=src/db/schema.ts
+   ```
+
+3. **Reviewing Migrations**
+   - Generated migrations are in `apps/api/drizzle/`
+   - For existing tables, modify the generated SQL to use ALTER TABLE
+   - Remove any recreation of existing tables/indexes
+   - Keep only the new changes you want to apply
+
+4. **Applying Migrations**
+   ```bash
+   # Local development
+   pnpm wrangler d1 migrations apply admin-db
+   
+   # Production
+   pnpm wrangler d1 migrations apply admin-db --env production
+   ```
+
+### Migration Best Practices
+
+1. **Adding New Columns**
+   ```sql
+   -- DO: Add nullable columns to existing tables
+   ALTER TABLE users ADD COLUMN new_field text;
+   
+   -- DO: Add indexes separately
+   CREATE INDEX idx_users_new_field ON users(new_field);
+   ```
+
+2. **Creating New Tables**
+   ```sql
+   -- Full table creation is fine for new tables
+   CREATE TABLE new_table (
+     id text PRIMARY KEY,
+     name text NOT NULL,
+     created_at text NOT NULL
+   );
+   ```
+
+3. **Modifying Existing Tables**
+   - Always use ALTER TABLE for existing tables
+   - Make new columns nullable initially
+   - Add constraints after data migration if needed
+   - Use separate migrations for complex changes
+
+4. **Common Patterns**
+   ```sql
+   -- Adding a nullable column
+   ALTER TABLE users ADD COLUMN field_name text;
+   
+   -- Adding a unique column
+   ALTER TABLE users ADD COLUMN unique_field text;
+   CREATE UNIQUE INDEX idx_unique_field ON users(unique_field);
+   
+   -- Adding a foreign key
+   ALTER TABLE users ADD COLUMN ref_id text REFERENCES other_table(id);
+   CREATE INDEX idx_ref_id ON users(ref_id);
+   ```
+
+### Troubleshooting Migrations
+
+1. **Migration Failed**
+   - Check if tables/columns already exist
+   - Remove table creation for existing tables
+   - Keep only ALTER TABLE statements
+   - Verify index names are unique
+
+2. **Data Consistency**
+   - Always make new columns nullable
+   - Add data migration steps if needed
+   - Use transactions for complex changes
+
+3. **Recovery Steps**
+   ```bash
+   # Revert to previous state if needed
+   pnpm wrangler d1 migrations revert admin-db
+   ```
+
 For detailed database setup and configuration, refer to `apps/api/DATABASE.md`. 

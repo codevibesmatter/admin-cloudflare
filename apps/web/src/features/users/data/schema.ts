@@ -5,13 +5,12 @@ export const userStatusSchema = z.enum(['active', 'inactive', 'invited', 'suspen
 
 export const userSchema = z.object({
   id: z.string(),
-  username: z.string(),
-  email: z.string().email(),
+  email: z.string(),
   firstName: z.string(),
   lastName: z.string(),
+  phoneNumber: z.string().optional(),
   role: userRoleSchema,
   status: userStatusSchema,
-  phoneNumber: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
