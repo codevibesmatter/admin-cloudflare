@@ -4,7 +4,7 @@ import { createRouter, RouterProvider } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
 import { QueryProvider, queryClient } from './lib/query'
 import { ThemeProvider } from './context/theme-context'
-import { ClerkAuthProvider } from './providers/clerk-provider'
+import { ClerkProviderWithTheme } from './lib/clerk'
 import './index.css'
 
 const router = createRouter({
@@ -25,13 +25,13 @@ if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement)
   root.render(
     <React.StrictMode>
-      <ClerkAuthProvider>
-        <QueryProvider>
-          <ThemeProvider defaultTheme='light' storageKey='vite-ui-theme'>
+      <ThemeProvider defaultTheme='light' storageKey='vite-ui-theme'>
+        <ClerkProviderWithTheme>
+          <QueryProvider>
             <RouterProvider router={router} />
-          </ThemeProvider>
-        </QueryProvider>
-      </ClerkAuthProvider>
+          </QueryProvider>
+        </ClerkProviderWithTheme>
+      </ThemeProvider>
     </React.StrictMode>,
   )
 }

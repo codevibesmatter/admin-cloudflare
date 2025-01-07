@@ -32,6 +32,9 @@ export const users = sqliteTable('users', {
   lastName: text('last_name').notNull(),
   role: text('role', { enum: ['superadmin', 'admin', 'manager', 'cashier'] }).notNull().default('cashier'),
   status: text('status', { enum: ['active', 'inactive', 'invited', 'suspended'] }).notNull().default('active'),
+  syncStatus: text('sync_status', { enum: ['synced', 'pending', 'failed'] }).notNull().default('pending'),
+  lastSyncAttempt: text('last_sync_attempt'),
+  syncError: text('sync_error'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })

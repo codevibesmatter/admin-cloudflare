@@ -2,24 +2,25 @@
 
 ## Architecture Overview
 
-The API server is built using [Hono](https://hono.dev/) and runs on Cloudflare Workers. It uses a D1 database with Drizzle ORM for data persistence and Clerk for authentication.
+The API server is built using [Hono](https://hono.dev/) and runs on Cloudflare Workers. It uses a Turso database with Drizzle ORM for data persistence and Clerk for authentication.
 
 ### Key Components
 
 1. **Runtime Environment**
-   - Uses Cloudflare Workers' bindings for environment variables and D1 database
+   - Uses Cloudflare Workers' bindings for environment variables
    - Environment variables are validated using Zod schema
    - Type-safe runtime environment through `RuntimeEnv` interface
 
 ```typescript
 interface RuntimeEnv {
-  DB: D1Database              // Cloudflare D1 database binding
-  db: DrizzleD1Database       // Drizzle ORM instance
+  db: DrizzleDatabase       // Drizzle ORM instance
   logger: Logger              // Pino logger instance
   ENVIRONMENT: string         // development/test/production
   LOG_LEVEL: string          // debug/info/warn/error
   CLERK_PUBLISHABLE_KEY: string
   CLERK_SECRET_KEY: string
+  TURSO_DATABASE_URL: string
+  TURSO_AUTH_TOKEN: string
 }
 ```
 
@@ -62,7 +63,7 @@ All routes are mounted under `/api` prefix:
 
 ### Database
 
-- Uses Cloudflare D1 (SQLite) database
+- Uses Turso (libSQL) database
 - Drizzle ORM for type-safe database operations
 - Connection is initialized per-request in middleware
 - Schema is defined in `db/schema.ts`
@@ -71,17 +72,17 @@ All routes are mounted under `/api` prefix:
 
 1. **Schema Verification**
    ```typescript
-   // DO: Verify actual D1 table structure
-   wrangler d1 execute DB_NAME --command="SELECT * FROM sqlite_master WHERE type='table'"
+   // DO: Verify actual database table structure
+   turso db shell edgestack "SELECT * FROM sqlite_master WHERE type='table'"
    
    // DON'T: Assume schema.ts matches database
    ```
 
 2. **Schema Synchronization**
-   - Always verify actual D1 table structure before making schema changes
-   - Keep schema.ts in sync with actual D1 table structure
-   - When syncing with external services (e.g., Clerk), only insert fields that exist in D1
-   - Default values in schema should match D1 defaults (e.g., 'active' vs 'invited')
+   - Always verify actual table structure before making schema changes
+   - Keep schema.ts in sync with actual table structure
+   - When syncing with external services (e.g., Clerk), only insert fields that exist in schema
+   - Default values in schema should match database defaults (e.g., 'active' vs 'invited')
 
 3. **Common Pitfalls**
    - Column naming mismatches between code and database
@@ -153,17 +154,26 @@ All routes are mounted under `/api` prefix:
 ### Development Setup
 
 1. Required Environment Variables:
+   Create a `.dev.vars` file in the `apps/api` directory:
    ```bash
-   ENVIRONMENT=development
-   LOG_LEVEL=debug
+   # Authentication
    CLERK_PUBLISHABLE_KEY=pk_test_...
    CLERK_SECRET_KEY=sk_test_...
+   
+   # Database
+   TURSO_DATABASE_URL=libsql://your-database-url
+   TURSO_AUTH_TOKEN=your-auth-token
    ```
 
-2. D1 Database:
-   - Local development uses local D1 database
+   **Note**: Never commit `.dev.vars` to version control. It's automatically loaded by Wrangler during development.
+
+2. Database:
+   - Uses Turso database for both development and production
    - Migrations in `drizzle/migrations`
-   - Run migrations before starting server
+   - Run migrations before starting server:
+     ```bash
+     pnpm run db:migrate
+     ```
 
 3. Local Development:
    ```bash
@@ -175,5 +185,5 @@ All routes are mounted under `/api` prefix:
 
 The API is deployed to Cloudflare Workers. Ensure:
 1. All environment variables are set in Cloudflare dashboard
-2. D1 database is created and migrations are applied
+2. Turso database URL and auth token are configured
 3. Clerk keys are configured for production environment 

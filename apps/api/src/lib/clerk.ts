@@ -1,7 +1,7 @@
 import type { User } from '../db/schema'
 import { eq } from 'drizzle-orm'
 import { users } from '../db/schema'
-import type { DrizzleD1Database } from 'drizzle-orm/d1'
+import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import type { Context } from 'hono'
 import type { AppContext } from '../db'
 import type * as schema from '../db/schema'
@@ -72,7 +72,7 @@ export async function listClerkUsers(c: Context<AppContext>) {
 
 export async function syncUserToClerk(
   c: Context<AppContext>, 
-  db: DrizzleD1Database<typeof schema>,
+  db: LibSQLDatabase<typeof schema>,
   dbUser: User
 ) {
   try {

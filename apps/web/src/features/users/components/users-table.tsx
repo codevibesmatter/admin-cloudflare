@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { handleServerError } from '@/utils/handle-server-error'
 import { Button } from '@/components/ui/button'
+import { SyncFromClerkButton } from './sync-from-clerk-button'
 import {
   Table,
   TableBody,
@@ -626,7 +627,7 @@ export function UsersTable() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center py-4">
+      <div className="flex items-center justify-between py-4">
         <div className="relative max-w-sm">
           <Input
             placeholder="Search all columns..."
@@ -640,6 +641,7 @@ export function UsersTable() {
             </div>
           )}
         </div>
+        <SyncFromClerkButton />
       </div>
       {error && (
         <pre className="p-4 bg-destructive/10 text-destructive rounded-md">

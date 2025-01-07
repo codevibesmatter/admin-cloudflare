@@ -7,7 +7,7 @@ This guide explains how to add new API endpoints to our Cloudflare Workers-based
 Our API stack consists of:
 - **Hono** - API Server framework
 - **Zod** - Request/Response validation
-- **Drizzle** - Type-safe ORM for D1 database
+- **Drizzle** - Type-safe ORM for Turso database
 - **Clerk** - Authentication
 - **React Query** - Client-side data fetching
 

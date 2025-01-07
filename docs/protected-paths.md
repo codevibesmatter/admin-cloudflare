@@ -89,11 +89,11 @@ apps/web/src/features/
    - Don't change initialization patterns
    - Maintain transaction handling
    - Keep connection pooling settings
-   - Always verify actual D1 table structure before schema changes
+   - Always verify actual database table structure before schema changes
    - Keep schema.ts synchronized with actual database structure
-   - Use wrangler d1 execute to check current schema:
+   - Use turso CLI to check current schema:
      ```bash
-     wrangler d1 execute DB_NAME --command="SELECT * FROM sqlite_master WHERE type='table'"
+     turso db shell DB_NAME "SELECT * FROM sqlite_master WHERE type='table'"
      ```
 
 4. **Response Format**

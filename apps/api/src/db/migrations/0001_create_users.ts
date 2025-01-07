@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
+import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
@@ -10,8 +11,8 @@ export const users = sqliteTable('users', {
   updatedAt: text('updated_at').notNull(),
 })
 
-export async function up(db: D1Database) {
-  await db.prepare(`
+export async function up(db: LibSQLDatabase) {
+  await db.run(sql`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       email TEXT NOT NULL UNIQUE,
@@ -20,11 +21,11 @@ export async function up(db: D1Database) {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )
-  `).run()
+  `)
 }
 
-export async function down(db: D1Database) {
-  await db.prepare(`
+export async function down(db: LibSQLDatabase) {
+  await db.run(sql`
     DROP TABLE IF EXISTS users
-  `).run()
+  `)
 } 

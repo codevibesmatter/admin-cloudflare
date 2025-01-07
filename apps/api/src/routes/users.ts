@@ -5,21 +5,11 @@ import { eq } from 'drizzle-orm'
 import { users } from '../db/schema'
 import { wrapResponse } from '../lib/response'
 import type { AppContext } from '../db'
+import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import { notFound } from '../middleware/error'
-import { syncUserToClerk, listClerkUsers } from '../lib/clerk'
 import { getCurrentTimestamp } from '../db/utils'
-import type { DrizzleD1Database } from 'drizzle-orm/d1'
-
-// Simple ID generator
-function generateId() {
-  const chars = '0123456789abcdefghijklmnopqrstuvwxyz'
-  let result = ''
-  const bytes = crypto.getRandomValues(new Uint8Array(10))
-  for (let i = 0; i < 10; i++) {
-    result += chars[bytes[i] % chars.length]
-  }
-  return result
-}
+import { createClerkUser, listClerkUsers } from '../lib/clerk'
+import { generateId } from '../lib/utils'
 
 const app = new Hono<AppContext>()
 

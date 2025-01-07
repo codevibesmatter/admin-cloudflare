@@ -1,22 +1,13 @@
-import type { D1Database } from '@cloudflare/workers-types'
-import type { DrizzleD1Database } from 'drizzle-orm/d1'
-import * as schema from './schema'
+import type { Hono } from 'hono'
 import type { RuntimeEnv } from '../env'
-import type { Logger } from 'pino'
 
-// Define variables available in context
-export interface ContextVariableMap {
-  userId: string
-}
+// Re-export database type
+export type { Database } from './config'
 
-// Define the app context with bindings
-export interface AppContext {
+// Export context type with updated database
+export type AppContext = {
   Bindings: RuntimeEnv
-  Variables: ContextVariableMap
+  Variables: {
+    userId: string
+  }
 }
-
-// Re-export RuntimeEnv as Bindings for compatibility
-export type { RuntimeEnv as Bindings }
-
-export * from './config'
-export * from './schema'

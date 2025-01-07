@@ -1,47 +1,36 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { logger } from 'hono-pino'
 import { clerkMiddleware } from '@hono/clerk-auth'
 import { errorHandler } from './middleware/error'
 import { authMiddleware } from './middleware/auth'
-import { initDBFromEnv } from './db'
 import usersRouter from './routes/users'
+import testRouter from './routes/test'
+import webhooks from './routes/webhooks/clerk'
 import type { AppContext } from './db'
-import { pino } from 'pino'
+import { getDatabaseClient } from './db/config'
 
 const app = new Hono<AppContext>()
 
-// Add CORS middleware first
-app.use('*', cors({
-  origin: ['http://localhost:5173'],
-  credentials: true,
-}))
-
-// Add logger and environment middleware
+// Add middleware (order is important)
+app.use('*', cors())
+app.use('*', logger())
 app.use('*', async (c, next) => {
-  // Create logger instance using environment bindings
-  c.env.logger = pino({
-    level: c.env.LOG_LEVEL || 'info',
-  })
+  // Initialize database
+  c.env.db = getDatabaseClient(c.env)
   await next()
 })
 
-// Add Clerk middleware
-app.use('*', clerkMiddleware())
-
-// Add database middleware
-app.use('*', async (c, next) => {
-  const db = await initDBFromEnv(c.env)
-  c.env.db = db
-  await next()
-})
+// Mount webhook routes before auth middleware
+app.route('/api/webhooks/clerk', webhooks)
 
 // Add auth middleware
+app.use('*', clerkMiddleware())
 app.use('*', authMiddleware)
-
-// Add error middleware
 app.use('*', errorHandler)
 
-// Mount routes
+// Mount authenticated routes
 app.route('/api/users', usersRouter)
+app.route('/api/test', testRouter)
 
 export default app

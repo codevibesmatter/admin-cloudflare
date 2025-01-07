@@ -37,4 +37,7 @@ yarn-error.log*
 
 # Cloudflare
 .wrangler
-.dev.vars 
+.dev.vars
+
+# Tunnel URL
+.tunnel-url 

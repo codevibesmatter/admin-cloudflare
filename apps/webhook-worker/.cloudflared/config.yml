@@ -1,0 +1,7 @@
+tunnel: c3203d73-7d46-4d41-b512-b8904ba72d88
+credentials-file: /home/benfreed/.cloudflared/c3203d73-7d46-4d41-b512-b8904ba72d88.json
+
+ingress:
+  - hostname: webhook-worker.codingincabins.xyz
+    service: http://localhost:8788
+  - service: http_status:404 

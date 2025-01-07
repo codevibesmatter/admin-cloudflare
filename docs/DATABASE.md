@@ -53,13 +53,27 @@ The API supports cursor-based pagination for listing users:
 
 ## Database Implementation
 
-The application uses Cloudflare D1 with Drizzle ORM for type-safe database operations. Key features include:
+The application uses Turso with Drizzle ORM for type-safe database operations. Key features include:
 
 1. **Type Safety**: Full TypeScript support through Drizzle ORM
 2. **Migrations**: Automated schema migrations using Drizzle Kit
-3. **Connection Management**: Singleton pattern for database connections
+3. **Connection Management**: Reusable client pattern for database connections
 4. **Query Building**: Type-safe query building with Drizzle's query builder
 5. **Timestamps**: Automatic handling of createdAt/updatedAt fields
+
+### Environment Setup
+
+1. **Required Variables**
+   ```bash
+   # Turso Database Configuration
+   TURSO_DATABASE_URL=libsql://your-database-url
+   TURSO_AUTH_TOKEN=your-auth-token
+   ```
+
+2. **Development Environment**
+   - Create `.dev.vars` in `apps/api` directory
+   - Add Turso credentials (never commit to version control)
+   - Variables are loaded automatically by Wrangler
 
 ### Migration Workflow
 
@@ -71,7 +85,7 @@ The application uses Cloudflare D1 with Drizzle ORM for type-safe database opera
 2. **Generating Migrations**
    ```bash
    cd apps/api
-   pnpm drizzle-kit generate:sqlite --schema=src/db/schema.ts
+   pnpm run db:generate
    ```
 
 3. **Reviewing Migrations**
@@ -82,11 +96,7 @@ The application uses Cloudflare D1 with Drizzle ORM for type-safe database opera
 
 4. **Applying Migrations**
    ```bash
-   # Local development
-   pnpm wrangler d1 migrations apply admin-db
-   
-   # Production
-   pnpm wrangler d1 migrations apply admin-db --env production
+   pnpm run db:migrate
    ```
 
 ### Migration Best Practices
@@ -137,16 +147,53 @@ The application uses Cloudflare D1 with Drizzle ORM for type-safe database opera
    - Remove table creation for existing tables
    - Keep only ALTER TABLE statements
    - Verify index names are unique
+   - Check Turso connection and credentials
 
 2. **Data Consistency**
    - Always make new columns nullable
    - Add data migration steps if needed
    - Use transactions for complex changes
+   - Test migrations locally before production
 
 3. **Recovery Steps**
-   ```bash
-   # Revert to previous state if needed
-   pnpm wrangler d1 migrations revert admin-db
+   - Contact Turso support for database restore if needed
+   - Keep backup of schema changes
+   - Test migrations locally before applying to production
+   - Use Turso's backup features when available
+
+### Database Operations
+
+1. **Connection Management**
+   ```typescript
+   // DO: Use the getDatabaseClient helper
+   const db = getDatabaseClient(env);
+   
+   // DON'T: Create new connections manually
+   const db = createClient({ url: env.TURSO_DATABASE_URL });
+   ```
+
+2. **Query Patterns**
+   ```typescript
+   // DO: Use type-safe queries
+   const user = await db
+     .select()
+     .from(users)
+     .where(eq(users.id, id))
+     .get();
+   
+   // DON'T: Use raw SQL
+   const user = await db.execute('SELECT * FROM users');
+   ```
+
+3. **Error Handling**
+   ```typescript
+   // DO: Handle database errors gracefully
+   try {
+     const result = await db.select().from(users).all();
+   } catch (error) {
+     logger.error('Database error:', error);
+     throw new DatabaseError('Failed to fetch users');
+   }
    ```
 
 For detailed database setup and configuration, refer to `apps/api/DATABASE.md`. 

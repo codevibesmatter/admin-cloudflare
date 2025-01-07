@@ -1,29 +1,16 @@
-import { drizzle } from 'drizzle-orm/d1'
-import type { D1Database } from '@cloudflare/workers-types'
-import type { RuntimeEnv } from '../env'
+import { createClient } from '@libsql/client'
+import { drizzle } from 'drizzle-orm/libsql'
 import * as schema from './schema'
-import type { DrizzleD1Database } from 'drizzle-orm/d1'
+import type { RuntimeEnv } from '../env'
 
-let db: DrizzleD1Database<typeof schema> | null = null
+export function getDatabaseClient(env: RuntimeEnv) {
+  const client = createClient({
+    url: env.TURSO_DATABASE_URL,
+    authToken: env.TURSO_AUTH_TOKEN,
+  })
 
-export const initDBFromEnv = async (env: RuntimeEnv) => {
-  if (!db) {
-    if (!env.DB) {
-      throw new Error('D1 database binding not found in environment')
-    }
-    db = drizzle(env.DB, { schema })
-  }
-  return db
+  return drizzle(client, { schema })
 }
 
-export const getDB = () => {
-  if (!db) {
-    throw new Error('Database not initialized. Call initDB first.')
-  }
-  return db
-}
-
-// For testing purposes
-export const resetDB = () => {
-  db = null
-} 
+// Export database type
+export type Database = ReturnType<typeof getDatabaseClient> 

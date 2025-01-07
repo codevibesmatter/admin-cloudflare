@@ -1,34 +1,17 @@
-import { z } from 'zod'
-import type { D1Database } from '@cloudflare/workers-types'
-import type { DrizzleD1Database } from 'drizzle-orm/d1'
-import type { Logger } from 'pino'
-import type { Hono } from 'hono'
+import type { LibSQLDatabase } from 'drizzle-orm/libsql'
+import type { User } from '@clerk/backend'
+import type { MiddlewareHandler } from 'hono'
 import * as schema from './db/schema'
 
-// Define environment schema with Zod
-const envSchema = z.object({
-  ENVIRONMENT: z.enum(['development', 'test', 'production']).default('development'),
-  LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-  CLERK_PUBLISHABLE_KEY: z.string(),
-  CLERK_SECRET_KEY: z.string(),
-})
-
-// Parse and validate environment variables
-export function validateEnv(env: Record<string, string | undefined>): Env {
-  const result = envSchema.safeParse(env)
-  if (!result.success) {
-    console.error('❌ Invalid environment variables:', result.error.flatten().fieldErrors)
-    throw new Error('Invalid environment variables')
-  }
-  return result.data
-}
-
-// Base environment type from schema
-export type Env = z.infer<typeof envSchema>
-
-// Extended environment type with runtime bindings
-export interface RuntimeEnv extends Env {
-  DB: D1Database
-  db: DrizzleD1Database<typeof schema>
-  logger: Logger
+export interface RuntimeEnv {
+  ENVIRONMENT: string
+  CLERK_PUBLISHABLE_KEY: string
+  CLERK_SECRET_KEY: string
+  TURSO_DATABASE_URL: string
+  TURSO_AUTH_TOKEN: string
+  WEBHOOK_SECRET: string
+  CLERK_WEBHOOK_SECRET: string
+  db: LibSQLDatabase<typeof schema>
+  logger: MiddlewareHandler
+  clerk: { users: { getUser: (id: string) => Promise<User> } }
 } 
