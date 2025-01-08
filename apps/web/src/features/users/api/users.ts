@@ -1,62 +1,74 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '@clerk/clerk-react'
-import useApi from '@/lib/api'
-import type { GetUsersResponse, User, UserCreate, UserUpdate } from '@admin-cloudflare/api-types'
+import { useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query'
+import { useApi } from '@/lib/api'
+import type { GetUsersResponse, UserCreate, UserUpdate } from '@admin-cloudflare/api-types'
 
 // Query keys for React Query
 export const userKeys = {
   all: ['users'] as const,
   lists: () => [...userKeys.all, 'list'] as const,
-  list: (filters: string) => [...userKeys.lists(), { filters }] as const,
   details: (id: string) => [...userKeys.all, 'detail', id] as const,
 }
 
-// Get users query
-export function useUsers() {
-  const { getToken } = useAuth()
+type ExtendedGetUsersResponse = GetUsersResponse & {
+  meta: {
+    timestamp: string;
+    hasNextPage: boolean;
+    offset: number;
+  }
+}
+
+export function useUsers(
+  limit = 50,
+  sortField?: string,
+  sortOrder?: 'asc' | 'desc'
+) {
   const api = useApi()
   
-  return useQuery<GetUsersResponse, Error>({
-    queryKey: userKeys.lists(),
-    queryFn: async () => {
-      const token = await getToken()
-      if (!token) throw new Error('No auth token available')
-      const apiWithAuth = useApi(token)
-      return apiWithAuth.users.list()
+  return useInfiniteQuery<ExtendedGetUsersResponse>({
+    queryKey: [...userKeys.lists(), { sortField, sortOrder }],
+    queryFn: async ({ pageParam }) => {
+      const offset = typeof pageParam === 'number' ? pageParam * limit : 0
+      const response = await api.users.list({
+        offset,
+        limit,
+        sortField,
+        sortOrder,
+      })
+      return {
+        ...response,
+        meta: {
+          ...response.meta,
+          hasNextPage: response.data.users.length === limit,
+          offset,
+        }
+      } satisfies ExtendedGetUsersResponse
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage.meta.hasNextPage) return undefined
+      return allPages.length
+    },
+    initialPageParam: 0
+  })
+}
+
+export function useCreateUser() {
+  const queryClient = useQueryClient()
+  const api = useApi()
+  
+  return useMutation({
+    mutationFn: (data: UserCreate) => api.users.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: userKeys.lists() })
     }
   })
 }
 
-// Create user mutation
-export function useCreateUser() {
-  const { getToken } = useAuth()
-  const queryClient = useQueryClient()
-  
-  return useMutation<User, Error, UserCreate>({
-    mutationFn: async (data: UserCreate) => {
-      const token = await getToken()
-      if (!token) throw new Error('No auth token available')
-      const apiWithAuth = useApi(token)
-      return apiWithAuth.users.create(data)
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: userKeys.lists() })
-    },
-  })
-}
-
-// Update user mutation
 export function useUpdateUser() {
-  const { getToken } = useAuth()
   const queryClient = useQueryClient()
+  const api = useApi()
   
   return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: UserUpdate }) => {
-      const token = await getToken()
-      if (!token) throw new Error('No auth token available')
-      const apiWithAuth = useApi(token)
-      return apiWithAuth.users.update(id, data)
-    },
+    mutationFn: ({ id, data }: { id: string; data: UserUpdate }) => api.users.update(id, data),
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: userKeys.details(id) })
       queryClient.invalidateQueries({ queryKey: userKeys.lists() })
@@ -64,18 +76,12 @@ export function useUpdateUser() {
   })
 }
 
-// Delete user mutation
 export function useDeleteUser() {
-  const { getToken } = useAuth()
   const queryClient = useQueryClient()
+  const api = useApi()
   
   return useMutation({
-    mutationFn: async (id: string) => {
-      const token = await getToken()
-      if (!token) throw new Error('No auth token available')
-      const apiWithAuth = useApi(token)
-      return apiWithAuth.users.delete(id)
-    },
+    mutationFn: (id: string) => api.users.delete(id),
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: userKeys.details(id) })
       queryClient.invalidateQueries({ queryKey: userKeys.lists() })
@@ -83,37 +89,12 @@ export function useDeleteUser() {
   })
 }
 
-// Sync user with Clerk mutation
-export function useSyncUserWithClerk() {
-  const { getToken } = useAuth()
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const token = await getToken()
-      if (!token) throw new Error('No auth token available')
-      const apiWithAuth = useApi(token)
-      return apiWithAuth.users.syncClerk(id)
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: userKeys.details(data.id) })
-      queryClient.invalidateQueries({ queryKey: userKeys.lists() })
-    }
-  })
-}
-
-// Sync from Clerk mutation
 export function useSyncFromClerk() {
-  const { getToken } = useAuth()
   const queryClient = useQueryClient()
+  const api = useApi()
   
   return useMutation({
-    mutationFn: async () => {
-      const token = await getToken()
-      if (!token) throw new Error('No auth token available')
-      const apiWithAuth = useApi(token)
-      return apiWithAuth.users.syncFromClerk()
-    },
+    mutationFn: () => api.users.syncFromClerk(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: userKeys.lists() })
     }

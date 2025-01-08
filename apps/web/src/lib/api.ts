@@ -1,8 +1,34 @@
 import { hc } from 'hono/client'
+import { useAuth } from '@clerk/clerk-react'
 import type { AppType, User, UserCreate, UserUpdate, GetUsersResponse } from '@admin-cloudflare/api-types'
 
 // Base URL from environment variable
 const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8787'
+
+// Base fetch function that adds auth and handles paths
+const baseFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+  const { getToken } = useAuth()
+  const token = await getToken()
+  
+  // Convert input to URL
+  const url = input instanceof URL ? input : new URL(input.toString(), baseURL)
+  
+  // Remove any duplicate /api prefixes and /n
+  const path = url.pathname
+    .replace(/^\/api/, '')  // Remove leading /api if present
+    .replace(/\/n\//, '/')  // Remove /n/
+  
+  // Create final URL
+  const finalUrl = new URL('/api' + path, baseURL)
+  
+  return fetch(finalUrl, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      Authorization: token ? `Bearer ${token}` : '',
+    },
+  })
+}
 
 // Error class for API responses
 export class APIError extends Error {
@@ -18,10 +44,19 @@ export class APIError extends Error {
 }
 
 // Create a function to get the API instance with auth
-export function useApi(token?: string) {
+export function useApi() {
+  const { getToken } = useAuth()
+  
   const client = hc<AppType>(baseURL, {
-    fetch: (input: RequestInfo | URL, init?: RequestInit) => {
-      return fetch(input, {
+    fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+      const token = await getToken()
+      
+      // Convert input to URL and normalize path
+      const url = input instanceof URL ? input : new URL(input.toString(), baseURL)
+      const normalizedPath = url.pathname.replace('/n/', '/').replace('/api/', '/')
+      url.pathname = '/api' + normalizedPath
+      
+      return fetch(url, {
         ...init,
         headers: {
           ...init?.headers,
@@ -33,7 +68,8 @@ export function useApi(token?: string) {
 
   return {
     users: {
-      list: () => client.users.$get()
+      list: (params?: { offset?: number; limit?: number; sortField?: string; sortOrder?: 'asc' | 'desc' }) => 
+        client.users.$get({ query: params })
         .then((res: Response) => res.json() as Promise<GetUsersResponse>)
         .catch((error: Error & { status?: number }) => {
           throw new APIError(
