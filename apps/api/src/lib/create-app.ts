@@ -3,14 +3,14 @@ import { cors } from 'hono/cors'
 import { prettyJSON } from 'hono/pretty-json'
 import { timing } from 'hono/timing'
 import type { Context, Next } from 'hono'
-import type { Bindings } from '../db'
+import type { RuntimeEnv } from '../env'
 import { errorHandler } from '../middleware/error'
 import { logging, requestTiming } from '../middleware/logging'
 import { authMiddleware } from '../middleware/auth'
 import { versionMiddleware } from '../middleware/version'
 
 export const createApp = () => {
-  const app = new OpenAPIHono<{ Bindings: Bindings }>()
+  const app = new OpenAPIHono<{ Bindings: RuntimeEnv }>()
 
   // Add global middleware
   app.use('*', cors())
@@ -22,7 +22,7 @@ export const createApp = () => {
   
   // Debug middleware to log all requests
   app.use('*', async (c, next) => {
-    console.log('📥 Incoming request:', {
+    c.env.logger.debug('📥 Incoming request', {
       method: c.req.method,
       path: c.req.path,
       headers: Object.fromEntries(c.req.raw.headers.entries())
@@ -38,7 +38,7 @@ export const createApp = () => {
 
   // Not found handler
   app.notFound((c) => {
-    console.log('❌ Route not found:', c.req.path)
+    c.env.logger.warn('❌ Route not found', { path: c.req.path })
     return c.json({
       error: {
         code: 'NOT_FOUND',

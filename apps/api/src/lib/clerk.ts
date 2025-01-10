@@ -1,135 +1,117 @@
-import type { User } from '../db/schema'
-import { eq } from 'drizzle-orm'
-import { users } from '../db/schema'
-import type { LibSQLDatabase } from 'drizzle-orm/libsql'
-import type { Context } from 'hono'
-import type { AppContext } from '../db'
-import type * as schema from '../db/schema'
+import type { User } from '../db/schema/users'
+import { generateId } from './utils'
+import { getCurrentTimestamp } from '../db/utils'
+import type { HonoContext } from '../types'
+import { createDatabase } from '../db/config'
 
-interface CreateClerkUserParams {
-  email: string
-  firstName: string
-  lastName: string
-  password?: string
+export interface ClerkWebhookEvent {
+  data: {
+    id: string
+    first_name?: string
+    last_name?: string
+    email_addresses?: Array<{
+      email_address: string
+      id: string
+    }>
+    created_at: number
+    updated_at: number
+    public_metadata?: Record<string, unknown>
+  }
+  object: 'event'
+  type: string
 }
 
-export async function createClerkUser(c: Context<AppContext>, params: CreateClerkUserParams) {
-  try {
-    const clerk = c.get('clerk')
-    const user = await clerk.users.createUser({
-      emailAddress: [params.email],
-      firstName: params.firstName,
-      lastName: params.lastName,
-      password: params.password,
-      skipPasswordRequirement: true,
-      skipPasswordChecks: true,
+function rowToUser(row: Record<string, any>): User {
+  return {
+    id: row.id,
+    clerkId: row.clerk_id,
+    email: row.email,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    imageUrl: row.image_url,
+    role: row.role,
+    status: row.status,
+    syncStatus: row.sync_status,
+    lastSyncAttempt: row.last_sync_attempt,
+    syncError: row.sync_error,
+    metadata: row.metadata,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  }
+}
+
+export async function syncUser(
+  context: HonoContext,
+  event: ClerkWebhookEvent
+): Promise<User> {
+  const data = event.data
+  const email = data.email_addresses?.[0]?.email_address
+
+  if (!email) {
+    throw new Error('User has no email address')
+  }
+
+  const db = await createDatabase(context)
+
+  // Check if user exists
+  const existingResult = await db.execute({
+    sql: 'SELECT * FROM users WHERE clerk_id = ? LIMIT 1',
+    args: [data.id]
+  })
+  const existingUser = existingResult.rows[0] ? rowToUser(existingResult.rows[0] as Record<string, any>) : undefined
+
+  if (existingUser) {
+    // Update user
+    const result = await db.execute({
+      sql: `
+        UPDATE users 
+        SET 
+          first_name = ?,
+          last_name = ?,
+          email = ?,
+          sync_status = 'synced',
+          last_sync_attempt = ?,
+          updated_at = ?
+        WHERE id = ?
+        RETURNING *
+      `,
+      args: [
+        data.first_name || existingUser.firstName,
+        data.last_name || existingUser.lastName,
+        email,
+        getCurrentTimestamp(),
+        getCurrentTimestamp(),
+        existingUser.id
+      ]
     })
-    return user
-  } catch (error) {
-    console.error('Failed to create Clerk user:', error)
-    throw error
+
+    return rowToUser(result.rows[0] as Record<string, any>)
   }
-}
 
-export async function listClerkUsers(c: Context<AppContext>) {
-  try {
-    const clerk = c.get('clerk')
-    const PAGE_SIZE = 10
-    let allUsers: Array<Awaited<ReturnType<typeof clerk.users.getUser>>> = []
-    let pageNumber = 0
-    let hasMore = true
+  // Create new user
+  const result = await db.execute({
+    sql: `
+      INSERT INTO users (
+        id, clerk_id, first_name, last_name, email,
+        role, status, sync_status, last_sync_attempt,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING *
+    `,
+    args: [
+      generateId(),
+      data.id,
+      data.first_name || '',
+      data.last_name || '',
+      email,
+      'cashier',
+      'active',
+      'synced',
+      getCurrentTimestamp(),
+      getCurrentTimestamp(),
+      getCurrentTimestamp()
+    ]
+  })
 
-    console.log('Starting to fetch all Clerk users...')
-    
-    while (hasMore) {
-      console.log(`Fetching page ${pageNumber + 1} of Clerk users...`)
-      const response = await clerk.users.getUserList({
-        limit: PAGE_SIZE,
-        offset: pageNumber * PAGE_SIZE,
-      })
-      
-      if (response.data.length === 0) {
-        hasMore = false
-      } else {
-        allUsers = [...allUsers, ...response.data]
-        pageNumber++
-        console.log(`Fetched ${response.data.length} users (total: ${allUsers.length})`)
-        
-        // If we got fewer users than the page size, we've reached the end
-        if (response.data.length < PAGE_SIZE) {
-          hasMore = false
-        }
-      }
-    }
-
-    console.log(`Completed fetching all Clerk users. Total: ${allUsers.length}`)
-    return { data: allUsers }
-  } catch (error) {
-    console.error('Failed to list Clerk users:', error)
-    throw error
-  }
-}
-
-export async function syncUserToClerk(
-  c: Context<AppContext>, 
-  db: LibSQLDatabase<typeof schema>,
-  dbUser: User
-) {
-  try {
-    // Skip if already synced
-    if (dbUser.clerkId) {
-      console.log(`User ${dbUser.id} already synced with Clerk ID ${dbUser.clerkId}`)
-      return dbUser
-    }
-
-    // Get list of Clerk users to check for existing user
-    const { data: clerkUsers } = await listClerkUsers(c)
-    const existingClerkUser = clerkUsers.find(
-      clerkUser => clerkUser.emailAddresses.some(
-        emailObj => emailObj.emailAddress === dbUser.email
-      )
-    )
-
-    if (!existingClerkUser) {
-      throw new Error('No matching Clerk user found. Cannot create new users due to quota limit.')
-    }
-
-    // Use existing Clerk user
-    console.log(`Found existing Clerk user for ${dbUser.email}`)
-    const clerkUserId = existingClerkUser.id
-
-    // Update D1 user with Clerk ID
-    const updatedUser = await db
-      .update(users)
-      .set({ clerkId: clerkUserId })
-      .where(eq(users.id, dbUser.id))
-      .returning()
-      .get()
-
-    console.log(`Synced user ${dbUser.id} with Clerk ID ${clerkUserId}`)
-    return updatedUser
-  } catch (error) {
-    console.error(`Failed to sync user ${dbUser.id} to Clerk:`, error)
-    throw error
-  }
-}
-
-export async function getClerkUser(c: Context<AppContext>, clerkId: string) {
-  try {
-    const clerk = c.get('clerk')
-    return await clerk.users.getUser(clerkId)
-  } catch (error) {
-    console.error('Failed to get Clerk user:', error)
-    throw error
-  }
-}
-
-export async function deleteClerkUser(c: Context<AppContext>, clerkId: string) {
-  try {
-    const clerk = c.get('clerk')
-    await clerk.users.deleteUser(clerkId)
-  } catch (error) {
-    console.error('Failed to delete Clerk user:', error)
-    throw error
-  }
+  return rowToUser(result.rows[0] as Record<string, any>)
 } 

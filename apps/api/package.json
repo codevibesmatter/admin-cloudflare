@@ -5,30 +5,30 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "dev": "wrangler dev src/index.ts --env development --local",
-    "deploy": "wrangler deploy src/index.ts",
+    "dev": "wrangler dev --env development --local",
+    "deploy": "wrangler deploy",
     "build": "tsc --project tsconfig.build.json",
-    "db:generate": "drizzle-kit generate:sqlite",
-    "db:migrate": "drizzle-kit push:sqlite",
-    "db:push": "wrangler d1 execute admin-db --local --file=./drizzle/0000_chilly_surge.sql",
-    "db:studio": "drizzle-kit studio"
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@admin-cloudflare/api-types": "workspace:*",
     "@clerk/backend": "^1.21.4",
     "@clerk/clerk-sdk-node": "^5.1.4",
     "@hono/clerk-auth": "^2.0.0",
+    "@hono/swagger-ui": "0.5.0",
     "@hono/zod-openapi": "^0.18.3",
     "@hono/zod-validator": "^0.1.11",
     "@libsql/client": "^0.14.0",
-    "dotenv": "^16.4.7",
-    "dotenv-expand": "^12.0.1",
     "drizzle-orm": "^0.29.3",
     "drizzle-zod": "^0.5.1",
-    "hono": "^4.6.15",
+    "hono": "^4.6.16",
     "hono-pino": "^0.7.0",
     "pino": "^9.6.0",
-    "pino-pretty": "^13.0.0",
     "svix": "^1.45.1",
     "uuid": "^9.0.1",
     "web": "link:@libsql/client/web",
@@ -37,9 +37,10 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20231218.0",
     "@types/uuid": "^9.0.7",
-    "drizzle-kit": "^0.20.9",
+    "drizzle-kit": "^0.20.18",
+    "pino-pretty": "^13.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.0.0",
-    "wrangler": "^3.99.0"
+    "wrangler": "^3.100.0"
   }
 }

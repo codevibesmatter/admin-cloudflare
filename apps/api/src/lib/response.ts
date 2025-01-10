@@ -1,11 +1,9 @@
 import type { Context } from 'hono'
-import type { AppContext } from '../db'
+import type { AppContext } from '../types'
 
-export type APIResponse<T> = {
+export interface APIResponse<T> {
   data: T
-  meta: {
-    timestamp: string
-  }
+  meta?: Record<string, unknown>
 }
 
 export const wrapResponse = <T>(c: Context<AppContext>, data: T): APIResponse<T> => ({
@@ -15,22 +13,16 @@ export const wrapResponse = <T>(c: Context<AppContext>, data: T): APIResponse<T>
   }
 })
 
-export const wrapPaginatedResponse = <T>(
+export const wrapError = (
   c: Context<AppContext>,
-  data: T[],
-  total: number,
-  nextCursor?: string
-): APIResponse<{
-  items: T[]
-  total: number
-  nextCursor?: string
-}> => ({
+  error: Error,
+  status: number = 500
+): APIResponse<{ message: string }> => ({
   data: {
-    items: data,
-    total,
-    nextCursor
+    message: error.message
   },
   meta: {
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    status
   }
 }) 

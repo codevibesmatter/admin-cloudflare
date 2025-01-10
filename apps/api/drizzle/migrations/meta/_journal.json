@@ -8,6 +8,41 @@
       "when": 1735937423353,
       "tag": "0000_massive_enchantress",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1736356333278,
+      "tag": "0001_gray_morgan_stark",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1736356401556,
+      "tag": "0002_useful_proudstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1736356565993,
+      "tag": "0003_dashing_black_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1736361797914,
+      "tag": "0004_nebulous_the_hand",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1736444808745,
+      "tag": "0005_lean_rockslide",
+      "breakpoints": true
     }
   ]
 }

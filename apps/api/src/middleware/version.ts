@@ -1,17 +1,10 @@
 import type { Context, Next } from 'hono'
-import type { AppContext } from '../db'
-import type { PinoLogger } from 'hono-pino'
-
-type VersionContext = AppContext & {
-  Variables: {
-    logger: PinoLogger
-  }
-}
+import type { AppContext } from '../types'
 
 // Version middleware
-export const versionMiddleware = async (c: Context<VersionContext>, next: Next) => {
+export const versionMiddleware = async (c: Context<AppContext>, next: Next) => {
   const path = c.req.path
-  const logger = c.var.logger
+  const logger = c.env.logger
   const requestId = crypto.randomUUID().split('-')[0]
 
   logger.debug('Version middleware called', { requestId, path })

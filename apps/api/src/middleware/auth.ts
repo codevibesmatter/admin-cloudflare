@@ -1,6 +1,6 @@
 import { getAuth } from '@hono/clerk-auth'
 import { Context, Next } from 'hono'
-import { AppContext } from '../db'
+import type { AppContext, OrganizationContext } from '../types'
 
 // Middleware to handle session checks and logging
 export const authMiddleware = async (c: Context<AppContext>, next: Next) => {
@@ -13,12 +13,20 @@ export const authMiddleware = async (c: Context<AppContext>, next: Next) => {
       }, 401)
     }
 
+    // Set user ID in variables
     c.set('userId', auth.userId)
+
+    // Set organization context if present in session
+    if (auth.orgId) {
+      c.set('organizationId', auth.orgId)
+    }
+
     await next()
-  } catch (err) {
-    return c.json({
-      error: 'Unauthorized', 
-      message: err instanceof Error ? err.message : 'Authentication failed'
+    return
+  } catch (error) {
+    return c.json({ 
+      error: 'Unauthorized',
+      message: 'Failed to authenticate request'
     }, 401)
   }
 } 

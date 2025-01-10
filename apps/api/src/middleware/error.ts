@@ -1,117 +1,95 @@
-import { Context, Next } from 'hono'
-import { HTTPException } from 'hono/http-exception'
-import { ZodError } from 'zod'
-import type { AppContext } from '../db'
+import type { Next } from 'hono'
+import { DatabaseError, APIError } from '../lib/errors'
+import type { HonoContext } from '../types'
+import { generateId } from '../lib/utils'
+import { ErrorCode } from '../schemas/errors'
 
-// Valid HTTP status codes for responses
-type StatusCode = 200 | 201 | 400 | 401 | 403 | 404 | 500
+interface ErrorResponse {
+  code: keyof typeof ErrorCode
+  message: string
+  details?: unknown
+  requestId?: string
+  statusCode: number
+}
 
-export class APIError extends Error {
-  constructor(
-    message: string,
-    public statusCode: StatusCode = 500,
-    public code: string = 'INTERNAL_SERVER_ERROR',
-    public details?: unknown
-  ) {
-    super(message)
-    this.name = 'APIError'
+function formatError(error: unknown): ErrorResponse {
+  if (error instanceof APIError) {
+    return {
+      code: error.code as keyof typeof ErrorCode,
+      message: error.message,
+      details: error.details,
+      statusCode: error.statusCode
+    }
+  }
+
+  if (error instanceof DatabaseError) {
+    return {
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Database operation failed',
+      details: {
+        error: error.message,
+        code: error.code,
+        details: error.details
+      },
+      statusCode: 500
+    }
+  }
+
+  // Default error response
+  return {
+    code: 'INTERNAL_SERVER_ERROR',
+    message: error instanceof Error ? error.message : 'An unexpected error occurred',
+    statusCode: 500
   }
 }
 
-type ErrorResponse = {
-  error: {
-    code: string
-    message: string
-    details?: unknown
-    stack?: string
-  }
-  meta: {
-    timestamp: string
-  }
-}
-
-export const errorHandler = async (c: Context<AppContext>, next: Next) => {
-  const requestId = crypto.randomUUID().split('-')[0]
+export const errorHandler = async (c: HonoContext, next: Next) => {
+  const requestId = generateId()
+  // Store requestId in a header instead of context
+  c.header('X-Request-ID', requestId)
 
   try {
     await next()
+    return
   } catch (error) {
-    c.env.logger.error('Request error', { requestId, error })
-
-    const response: ErrorResponse = {
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'An unexpected error occurred',
-        ...(c.env.ENVIRONMENT === 'development' && { stack: (error as Error).stack })
-      },
-      meta: {
-        timestamp: new Date().toISOString()
-      }
-    }
-
-    // Handle different types of errors
-    if (error instanceof APIError) {
-      c.env.logger.error('API error', { 
-        requestId,
-        code: error.code,
-        message: error.message,
-        details: error.details
-      })
-      response.error = {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        ...(c.env.ENVIRONMENT === 'development' && { stack: error.stack })
-      }
-      return c.json(response, error.statusCode as StatusCode)
-    }
-
-    if (error instanceof HTTPException) {
-      c.env.logger.error('HTTP error', {
-        requestId,
-        status: error.status,
-        message: error.message
-      })
-      response.error = {
-        code: 'HTTP_ERROR',
-        message: error.message,
-        ...(c.env.ENVIRONMENT === 'development' && { stack: error.stack })
-      }
-      return c.json(response, error.status as StatusCode)
-    }
-
-    if (error instanceof ZodError) {
-      c.env.logger.error('Validation error', {
-        requestId,
-        details: error.format()
-      })
-      response.error = {
-        code: 'VALIDATION_ERROR',
-        message: 'Invalid request data',
-        details: error.format(),
-        ...(c.env.ENVIRONMENT === 'development' && { stack: error.stack })
-      }
-      return c.json(response, 400)
-    }
-
-    // Default error response
-    return c.json(response, 500)
+    const formattedError = formatError(error)
+    return c.json({
+      ...formattedError,
+      requestId
+    }, formattedError.statusCode as 400 | 401 | 403 | 404 | 500)
   }
 }
 
-// Common error creators
+// Error creators - these now return APIError instances
 export const notFound = (resource: string) => {
-  throw new APIError(`${resource} not found`, 404, 'NOT_FOUND')
+  throw new APIError(
+    `${resource} not found`,
+    'NOT_FOUND',
+    404
+  )
 }
 
 export const unauthorized = (message = 'Unauthorized') => {
-  throw new APIError(message, 401, 'UNAUTHORIZED')
+  throw new APIError(
+    message,
+    'UNAUTHORIZED',
+    401
+  )
 }
 
 export const forbidden = (message = 'Forbidden') => {
-  throw new APIError(message, 403, 'FORBIDDEN')
+  throw new APIError(
+    message,
+    'FORBIDDEN',
+    403
+  )
 }
 
 export const badRequest = (message: string, details?: unknown) => {
-  throw new APIError(message, 400, 'BAD_REQUEST', details)
+  throw new APIError(
+    message,
+    'BAD_REQUEST',
+    400,
+    details
+  )
 } 

@@ -30,6 +30,17 @@ export class BadRequestError extends APIError {
   }
 }
 
+export class DatabaseError extends Error {
+  constructor(
+    message: string,
+    public details: unknown = null,
+    public code: string = 'DATABASE_ERROR'
+  ) {
+    super(message)
+    this.name = 'DatabaseError'
+  }
+}
+
 // Error factories
 export const notFound = (resource: string) => {
   throw new NotFoundError(resource)

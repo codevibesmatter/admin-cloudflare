@@ -10,4 +10,18 @@ export function generateId(): string {
     result += chars[bytes[i] % chars.length]
   }
   return result
+}
+
+/**
+ * Generate a URL-friendly slug from a string
+ * @param str The string to convert to a slug
+ * @returns A URL-friendly slug
+ */
+export function generateSlug(str: string): string {
+  return str
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '') // Remove all non-word chars
+    .replace(/[\s_-]+/g, '-') // Replace spaces and _ with -
+    .replace(/^-+|-+$/g, '') // Remove leading/trailing -
 } 

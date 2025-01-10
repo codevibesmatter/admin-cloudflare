@@ -1,135 +1,163 @@
-import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
-import { users } from '../../db/schema'
-import { wrapResponse } from '../../lib/response'
-import type { AppContext } from '../../db'
-import { getCurrentTimestamp } from '../../db/utils'
-import { generateId } from '../../lib/utils'
-import { Webhook, WebhookRequiredHeaders } from 'svix'
+import { OpenAPIHono } from '@hono/zod-openapi'
+import { z } from 'zod'
+import { UserSyncService, OrganizationSync } from '../../sync'
+import type { WebhookEvent } from '@clerk/backend'
+import type { AppContext } from '../../types'
+import { OrganizationService, MemberService } from '../../db/services'
+import type { OrganizationRoleType } from '../../db/services/members'
+import { errorResponses } from '../../schemas/errors'
+import { createRoute } from '@hono/zod-openapi'
+import { badRequest } from '../../middleware/error'
 
-interface ClerkEvent {
-  data: {
-    id: string
-    email_addresses: Array<{
-      email_address: string
-      id: string
-    }>
-    first_name: string | null
-    last_name: string | null
-    created_at: number
-    updated_at: number
-  }
-  object: 'event'
-  type: string
-}
+const app = new OpenAPIHono<AppContext>()
 
-const app = new Hono<AppContext>()
+// Response schemas
+const webhookResponseSchema = z.object({
+  success: z.boolean()
+}).openapi('WebhookResponse')
 
-app.post('/', async (c) => {
-  // Get the webhook payload and headers
-  const payload = await c.req.text()
-  const svixId = c.req.header('svix-id')
-  const svixTimestamp = c.req.header('svix-timestamp')
-  const svixSignature = c.req.header('svix-signature')
+// Request schemas
+const userEventSchema = z.object({
+  type: z.enum(['user.created', 'user.updated', 'user.deleted']),
+  data: z.object({
+    id: z.string(),
+    first_name: z.string(),
+    last_name: z.string(),
+    email_addresses: z.array(z.object({
+      email_address: z.string().email()
+    })),
+    image_url: z.string().optional()
+  })
+}).openapi('UserEvent')
 
-  // Verify all required headers are present
-  if (!svixId || !svixTimestamp || !svixSignature) {
-    console.error('Missing required Svix headers')
-    return c.json({ error: 'Missing required headers' }, 401)
-  }
+const organizationEventSchema = z.object({
+  type: z.enum(['organization.created', 'organization.updated', 'organization.deleted']),
+  data: z.object({
+    id: z.string(),
+    name: z.string(),
+    slug: z.string()
+  })
+}).openapi('OrganizationEvent')
 
-  const headers: WebhookRequiredHeaders = {
-    'svix-id': svixId,
-    'svix-timestamp': svixTimestamp,
-    'svix-signature': svixSignature,
-  }
+const membershipEventSchema = z.object({
+  type: z.enum(['organizationMembership.created', 'organizationMembership.deleted']),
+  data: z.object({
+    organization: z.object({
+      id: z.string()
+    }),
+    public_user_data: z.object({
+      user_id: z.string()
+    }),
+    role: z.string()
+  })
+}).openapi('MembershipEvent')
 
-  // Verify webhook signature
-  const wh = new Webhook(c.env.CLERK_WEBHOOK_SECRET)
-  try {
-    const event = wh.verify(payload, headers) as ClerkEvent
-    const db = c.env.db
+const webhookEventSchema = z.discriminatedUnion('type', [
+  userEventSchema,
+  organizationEventSchema,
+  membershipEventSchema
+]).openapi('WebhookEvent')
 
-    switch (event.type) {
-      case 'user.created': {
-        // Create or update user
-        const user = await db.insert(users)
-          .values({
-            id: generateId(),
-            clerkId: event.data.id,
-            email: event.data.email_addresses[0]?.email_address || '',
-            firstName: event.data.first_name || '',
-            lastName: event.data.last_name || '',
-            role: 'admin',
-            status: 'active',
-            syncStatus: 'synced',
-            lastSyncAttempt: getCurrentTimestamp(),
-            createdAt: new Date(event.data.created_at).toISOString(),
-            updatedAt: new Date(event.data.updated_at).toISOString()
-          })
-          .onConflictDoUpdate({
-            target: users.clerkId,
-            set: {
-              email: event.data.email_addresses[0]?.email_address || '',
-              firstName: event.data.first_name || '',
-              lastName: event.data.last_name || '',
-              syncStatus: 'synced',
-              lastSyncAttempt: getCurrentTimestamp(),
-              updatedAt: new Date(event.data.updated_at).toISOString()
-            }
-          })
-          .returning()
-          .get()
-
-        return c.json(wrapResponse(c, user))
-      }
-
-      case 'user.updated': {
-        // Update user
-        const user = await db.update(users)
-          .set({
-            email: event.data.email_addresses[0]?.email_address || '',
-            firstName: event.data.first_name || '',
-            lastName: event.data.last_name || '',
-            syncStatus: 'synced',
-            lastSyncAttempt: getCurrentTimestamp(),
-            updatedAt: new Date(event.data.updated_at).toISOString()
-          })
-          .where(eq(users.clerkId, event.data.id))
-          .returning()
-          .get()
-
-        if (!user) {
-          // User not found - might have been deleted already
-          return c.json(wrapResponse(c, { message: 'User not found' }))
-        }
-
-        return c.json(wrapResponse(c, user))
-      }
-
-      case 'user.deleted': {
-        try {
-          // Try to delete user
-          const user = await db.delete(users)
-            .where(eq(users.clerkId, event.data.id))
-            .returning()
-            .get()
-
-          return c.json(wrapResponse(c, user))
-        } catch (error) {
-          // User might have been deleted already
-          console.log('User already deleted:', event.data.id)
-          return c.json(wrapResponse(c, { message: 'User already deleted' }))
+// Route definition
+const webhookRoute = createRoute({
+  method: 'post',
+  path: '/',
+  tags: ['Webhooks'],
+  summary: 'Handle Clerk webhook',
+  description: 'Handle webhook events from Clerk',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: z.union([userEventSchema, organizationEventSchema, membershipEventSchema])
         }
       }
-
-      default:
-        return c.json({ error: 'Unsupported event type' }, 400)
     }
-  } catch (err) {
-    console.error('Webhook verification failed:', err)
-    return c.json({ error: 'Webhook verification failed' }, 401)
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: webhookResponseSchema
+        }
+      },
+      description: 'Webhook processed successfully'
+    },
+    ...errorResponses
   }
+})
+
+// Route handler
+app.openapi(webhookRoute, async (c) => {
+  const event = c.req.valid('json') as WebhookEvent
+  const userService = new UserSyncService({ context: c })
+  const orgService = new OrganizationService({ context: c, logger: c.env.logger })
+  const memberService = new MemberService({ context: c, logger: c.env.logger })
+
+  switch (event.type) {
+    case 'user.created':
+      await userService.handleUserCreated(event)
+      break
+    case 'user.updated':
+      await userService.handleUserUpdated(event)
+      break
+    case 'user.deleted':
+      await userService.handleUserDeleted(event)
+      break
+    case 'organization.created':
+    case 'organization.updated':
+      if (event.data.id) {
+        await orgService.updateOrganization(event.data.id, {
+          name: event.data.name,
+          slug: event.data.slug
+        })
+      }
+      break
+    case 'organization.deleted':
+      if (event.data.id) {
+        const org = await orgService.getByClerkId(event.data.id)
+        if (org) {
+          await orgService.deleteOrganization(org.id)
+          c.env.logger.info('Organization deleted', { id: org.id, clerkId: event.data.id })
+        }
+      }
+      break
+    case 'organizationMembership.created':
+      if (event.data.organization.id) {
+        const createOrg = await orgService.getByClerkId(event.data.organization.id)
+        if (createOrg) {
+          await memberService.addMember({
+            organization_id: createOrg.id,
+            user_id: event.data.public_user_data.user_id,
+            role: 'member'
+          })
+          c.env.logger.info('Member added to organization', { 
+            organizationId: createOrg.id,
+            userId: event.data.public_user_data.user_id
+          })
+        }
+      }
+      break
+    case 'organizationMembership.deleted':
+      if (event.data.organization.id) {
+        const deleteOrg = await orgService.getByClerkId(event.data.organization.id)
+        if (deleteOrg) {
+          await memberService.removeMember(
+            deleteOrg.id,
+            event.data.public_user_data.user_id
+          )
+          c.env.logger.info('Member removed from organization', { 
+            organizationId: deleteOrg.id,
+            userId: event.data.public_user_data.user_id
+          })
+        }
+      }
+      break
+    default:
+      throw badRequest(`Unsupported webhook event type: ${event.type}`)
+  }
+
+  return c.json({ success: true })
 })
 
 export default app 

@@ -1,43 +1,47 @@
+import { LibSQLDatabase } from 'drizzle-orm/libsql'
+import { sql } from 'drizzle-orm'
 import * as createUsers from './0001_create_users'
+import * as createOrganizations from './0002_organizations'
 
 // List of migrations in order
 const migrations = [
   createUsers,
+  createOrganizations,
 ] as const
 
 // Migration metadata table
 const MIGRATION_TABLE = 'migrations'
 
 // Initialize migrations table
-async function initMigrationTable(db: D1Database) {
-  await db.prepare(`
+async function initMigrationTable(db: LibSQLDatabase) {
+  await db.run(sql`
     CREATE TABLE IF NOT EXISTS ${MIGRATION_TABLE} (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
       applied_at TEXT NOT NULL
     )
-  `).run()
+  `)
 }
 
 // Get applied migrations
-async function getAppliedMigrations(db: D1Database): Promise<string[]> {
-  const result = await db.prepare(`
-    SELECT name FROM ${MIGRATION_TABLE} ORDER BY id ASC
-  `).all<{ name: string }>()
+async function getAppliedMigrations(db: LibSQLDatabase): Promise<string[]> {
+  const result = await db.select({ name: sql<string>`name` })
+    .from(sql.raw(MIGRATION_TABLE))
+    .orderBy(sql`id ASC`)
   
-  return result.results?.map(row => row.name) || []
+  return result.map(row => row.name)
 }
 
 // Apply a single migration
-async function applyMigration(db: D1Database, migration: typeof migrations[number], name: string) {
+async function applyMigration(db: LibSQLDatabase, migration: typeof migrations[number], name: string) {
   console.log(`Applying migration: ${name}`)
   
   try {
     await migration.up(db)
-    await db.prepare(`
+    await db.run(sql`
       INSERT INTO ${MIGRATION_TABLE} (name, applied_at)
-      VALUES (?, ?)
-    `).bind(name, new Date().toISOString()).run()
+      VALUES (${name}, ${new Date().toISOString()})
+    `)
     
     console.log(`Successfully applied migration: ${name}`)
   } catch (error) {
@@ -47,15 +51,15 @@ async function applyMigration(db: D1Database, migration: typeof migrations[numbe
 }
 
 // Revert a single migration
-async function revertMigration(db: D1Database, migration: typeof migrations[number], name: string) {
+async function revertMigration(db: LibSQLDatabase, migration: typeof migrations[number], name: string) {
   console.log(`Reverting migration: ${name}`)
   
   try {
     await migration.down(db)
-    await db.prepare(`
+    await db.run(sql`
       DELETE FROM ${MIGRATION_TABLE}
-      WHERE name = ?
-    `).bind(name).run()
+      WHERE name = ${name}
+    `)
     
     console.log(`Successfully reverted migration: ${name}`)
   } catch (error) {
@@ -65,7 +69,7 @@ async function revertMigration(db: D1Database, migration: typeof migrations[numb
 }
 
 // Run all pending migrations
-export async function migrate(db: D1Database) {
+export async function migrate(db: LibSQLDatabase) {
   console.log('Starting migrations...')
   
   // Initialize migrations table
@@ -88,7 +92,7 @@ export async function migrate(db: D1Database) {
 }
 
 // Revert all migrations
-export async function revertAll(db: D1Database) {
+export async function revertAll(db: LibSQLDatabase) {
   console.log('Reverting all migrations...')
   
   // Get applied migrations

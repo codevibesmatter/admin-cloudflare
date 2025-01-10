@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, type SQL } from 'drizzle-orm'
 import type { Context } from 'hono'
-import type { AppContext } from '.'
+import type { AppContext } from '../types'
 import type { SQLiteTableWithColumns } from 'drizzle-orm/sqlite-core'
 
 // Pagination types
@@ -114,8 +114,5 @@ export function getCurrentTimestamp(): string {
 
 // Helper to get database instance from context
 export function getDBFromContext(c: Context<AppContext>) {
-  if (!c.env.db) {
-    throw new Error('Turso database instance not found')
-  }
   return c.env.db
 } 

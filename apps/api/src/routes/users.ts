@@ -1,264 +1,387 @@
-import { Hono } from 'hono'
-import { zValidator } from '@hono/zod-validator'
+import { OpenAPIHono } from '@hono/zod-openapi'
+import type { Context } from 'hono'
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
-import { users } from '../db/schema'
-import { wrapResponse } from '../lib/response'
-import type { AppContext } from '../db'
-import type { LibSQLDatabase } from 'drizzle-orm/libsql'
-import { notFound } from '../middleware/error'
-import { getCurrentTimestamp } from '../db/utils'
-import { createClerkUser, listClerkUsers } from '../lib/clerk'
+import { requireOrganizationRole } from '../middleware/organization'
 import { generateId } from '../lib/utils'
+import { getCurrentTimestamp } from '../db/utils'
+import type { AppContext } from '../types'
+import { notFound } from '../middleware/error'
+import { syncUser } from '../lib/clerk'
+import type { ClerkWebhookEvent } from '../lib/clerk'
+import { UserService } from '../db/services'
+import type { CreateUserInput, UpdateUserInput } from '../db/services/users'
+import { selectUserSchema, insertUserSchema, updateUserSchema } from '../db/schema/users'
+import { errorSchema, errorResponses } from '../schemas/errors'
+import { createRoute } from '@hono/zod-openapi'
 
-const app = new Hono<AppContext>()
+const app = new OpenAPIHono<AppContext>()
 
-const routes = app
-  .get('/', async (c) => {
-    try {
-      const db = c.env.db
-      const items = await db
-        .select()
-        .from(users)
-        .all()
-      return c.json(wrapResponse(c, { users: items }))
-    } catch (error) {
-      c.env.logger.error('Failed to fetch users:', error)
-      throw error
-    }
+// Response schemas
+const listUsersResponseSchema = z.object({
+  users: z.array(selectUserSchema),
+  total: z.number()
+}).openapi('ListUsersResponse')
+
+const deleteUserResponseSchema = z.object({
+  success: z.boolean()
+}).openapi('DeleteUserResponse')
+
+// Query/Path parameter schemas
+const listUsersQuerySchema = z.object({
+  cursor: z.string().optional().openapi({
+    param: {
+      name: 'cursor',
+      in: 'query'
+    },
+    example: 'next_12345',
+    description: 'Cursor for pagination'
+  }),
+  limit: z.number().optional().openapi({
+    param: {
+      name: 'limit',
+      in: 'query'
+    },
+    example: 10,
+    description: 'Number of items to return'
   })
-  .post('/', async (c) => {
-    try {
-      const data = await c.req.json()
-      const db = c.env.db
-      const user = await db.insert(users).values(data).returning().get()
-      return c.json(wrapResponse(c, user))
-    } catch (error) {
-      c.env.logger.error('Failed to create user:', error)
-      throw error
-    }
+}).openapi('ListUsersQuery')
+
+const userIdParamSchema = z.object({
+  id: z.string().openapi({
+    param: {
+      name: 'id',
+      in: 'path'
+    },
+    example: 'usr_123',
+    description: 'User ID'
   })
-  .get('/:id', async (c) => {
-    try {
-      const id = c.req.param('id')
-      const db = c.env.db
-      const user = await db.select().from(users).where(eq(users.id, id)).get()
-      if (!user) {
-        throw notFound('User')
-      }
-      return c.json(wrapResponse(c, user))
-    } catch (error) {
-      c.env.logger.error('Failed to fetch user:', error)
-      throw error
-    }
-  })
-  .put('/:id', async (c) => {
-    try {
-      const id = c.req.param('id')
-      const data = await c.req.json()
-      const db = c.env.db
-      const user = await db.update(users).set(data).where(eq(users.id, id)).returning().get()
-      if (!user) {
-        throw notFound('User')
-      }
-      return c.json(wrapResponse(c, user))
-    } catch (error) {
-      c.env.logger.error('Failed to update user:', error)
-      throw error
-    }
-  })
-  .delete('/:id', async (c) => {
-    try {
-      const id = c.req.param('id')
-      const db = c.env.db
-      const user = await db.select().from(users).where(eq(users.id, id)).get()
-      if (!user) {
-        throw notFound('User')
-      }
-      await db.delete(users).where(eq(users.id, id))
-      return c.json(wrapResponse(c, { success: true }))
-    } catch (error) {
-      c.env.logger.error('Failed to delete user:', error)
-      throw error
-    }
-  })
-  // Sync endpoint
-  .post('/:id/sync-clerk', async (c) => {
-    try {
-      const { id } = c.req.param()
-      const db = c.env.db
-      
-      // Find user
-      const user = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, id))
-        .get()
+}).openapi('UserIdParam')
 
-      if (!user) {
-        throw notFound('User')
-      }
-
-      // Skip if already synced
-      if (user.clerkId) {
-        console.log(`User ${user.id} already synced with Clerk ID ${user.clerkId}`)
-        return c.json(wrapResponse(c, user))
-      }
-
-      // Get list of Clerk users to check for existing user
-      const { data: clerkUsers } = await listClerkUsers(c)
-      const existingClerkUser = clerkUsers.find(
-        clerkUser => clerkUser.emailAddresses.some(
-          emailObj => emailObj.emailAddress === user.email
-        )
-      )
-
-      if (!existingClerkUser) {
-        throw new Error(`No matching Clerk user found for email ${user.email}. Cannot create new users due to quota limit.`)
-      }
-
-      // Update D1 user with Clerk ID
-      const updatedUser = await db
-        .update(users)
-        .set({ 
-          clerkId: existingClerkUser.id,
-          updatedAt: getCurrentTimestamp()
-        })
-        .where(eq(users.id, user.id))
-        .returning()
-        .get()
-
-      console.log(`Synced user ${user.id} with Clerk ID ${existingClerkUser.id}`)
-      return c.json(wrapResponse(c, updatedUser))
-    } catch (error) {
-      c.env.logger.error('Failed to sync user with Clerk:', error)
-      throw error
-    }
-  })
-  // Sync from Clerk endpoint
-  .post('/sync-from-clerk', async (c) => {
-    const db = c.env.db
-    
-    try {
-      // Get all D1 users
-      const d1Users = await db.select().from(users).all()
-      console.log(`Found ${d1Users.length} users in D1`)
-      
-      // Get all Clerk users - this will show pagination progress in logs
-      console.log('\nFetching Clerk users (with pagination)...')
-      const { data: clerkUsers } = await listClerkUsers(c)
-      console.log(`\nCompleted Clerk user fetch. Found ${clerkUsers.length} total users in Clerk`)
-      
-      // Log details about each Clerk user
-      console.log('\nClerk users found:')
-      clerkUsers.forEach((user, index) => {
-        const email = user.emailAddresses[0]?.emailAddress
-        console.log(`${index + 1}. Clerk ID: ${user.id}, Email: ${email || 'no email'}`)
-      })
-      
-      // First, remove any D1 users that don't have a clerkId
-      const unsyncedD1Users = d1Users.filter(user => !user.clerkId)
-      console.log(`\nFound ${unsyncedD1Users.length} unsynced users in D1 to remove:`)
-      unsyncedD1Users.forEach((user, index) => {
-        console.log(`${index + 1}. D1 ID: ${user.id}, Email: ${user.email}`)
-      })
-      
-      let removedCount = 0
-      let errors: Array<{ id: string; error: string }> = []
-      
-      // Process removals in batches
-      const BATCH_SIZE = 10
-      const DELAY_BETWEEN_BATCHES = 1000 // 1 second
-      
-      for (let i = 0; i < unsyncedD1Users.length; i += BATCH_SIZE) {
-        const batch = unsyncedD1Users.slice(i, i + BATCH_SIZE)
-        console.log(`\nProcessing removal batch ${i / BATCH_SIZE + 1} of ${Math.ceil(unsyncedD1Users.length / BATCH_SIZE)}:`)
-        
-        for (const user of batch) {
-          try {
-            console.log(`- Removing D1 user ${user.id} (${user.email})`)
-            await db.delete(users).where(eq(users.id, user.id))
-            removedCount++
-            console.log(`  ✓ Successfully removed`)
-          } catch (error) {
-            console.error(`  ✗ Failed to remove D1 user ${user.id}:`, error)
-            errors.push({
-              id: user.id,
-              error: error instanceof Error ? error.message : 'Unknown error'
-            })
-          }
+// Route definitions
+const listUsersRoute = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Users'],
+  summary: 'List users',
+  description: 'Retrieve a paginated list of users',
+  request: {
+    query: listUsersQuerySchema
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: listUsersResponseSchema
         }
-        
-        if (i + BATCH_SIZE < unsyncedD1Users.length) {
-          console.log(`\nWaiting ${DELAY_BETWEEN_BATCHES}ms before next removal batch...`)
-          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES))
+      },
+      description: 'Successfully retrieved users'
+    },
+    ...errorResponses
+  }
+})
+
+const createUserRoute = createRoute({
+  method: 'post',
+  path: '/',
+  tags: ['Users'],
+  summary: 'Create user',
+  description: 'Create a new user',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: insertUserSchema
         }
       }
-      
-      // Now sync any Clerk users that don't exist in D1
-      const syncedD1Users = d1Users.filter(user => user.clerkId)
-      const syncedClerkIds = new Set(syncedD1Users.map(user => user.clerkId))
-      const unsyncedClerk = clerkUsers.filter(user => !syncedClerkIds.has(user.id))
-      
-      console.log(`\nFound ${unsyncedClerk.length} Clerk users to sync to D1`)
-      let syncedCount = 0
-      
-      // Process creations in batches
-      for (let i = 0; i < unsyncedClerk.length; i += BATCH_SIZE) {
-        const batch = unsyncedClerk.slice(i, i + BATCH_SIZE)
-        console.log(`\nProcessing creation batch ${i / BATCH_SIZE + 1} of ${Math.ceil(unsyncedClerk.length / BATCH_SIZE)}:`)
-        
-        for (const clerkUser of batch) {
-          const email = clerkUser.emailAddresses[0]?.emailAddress
-          if (!email) {
-            console.warn(`- Skipping Clerk user ${clerkUser.id}: no email address`)
-            continue
-          }
-
-          try {
-            console.log(`- Creating D1 user for Clerk user ${clerkUser.id} (${email})`)
-            await db.insert(users).values({
-              id: generateId(),
-              clerkId: clerkUser.id,
-              email,
-              firstName: clerkUser.firstName || email.split('@')[0],
-              lastName: clerkUser.lastName || '',
-              role: 'admin', // Default role
-              status: 'active',
-              createdAt: getCurrentTimestamp(),
-              updatedAt: getCurrentTimestamp()
-            })
-            syncedCount++
-            console.log(`  ✓ Successfully created`)
-          } catch (error) {
-            console.error(`  ✗ Failed to create D1 user for Clerk user ${clerkUser.id}:`, error)
-            errors.push({
-              id: clerkUser.id,
-              error: error instanceof Error ? error.message : 'Unknown error'
-            })
-          }
+    }
+  },
+  responses: {
+    201: {
+      content: {
+        'application/json': {
+          schema: selectUserSchema
         }
-        
-        if (i + BATCH_SIZE < unsyncedClerk.length) {
-          console.log(`\nWaiting ${DELAY_BETWEEN_BATCHES}ms before next creation batch...`)
-          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES))
+      },
+      description: 'User created successfully'
+    },
+    ...errorResponses
+  }
+})
+
+const getUserRoute = createRoute({
+  method: 'get',
+  path: '/{id}',
+  tags: ['Users'],
+  summary: 'Get user',
+  description: 'Get a user by ID',
+  request: {
+    params: userIdParamSchema
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: selectUserSchema
+        }
+      },
+      description: 'User found'
+    },
+    ...errorResponses
+  }
+})
+
+const updateUserRoute = createRoute({
+  method: 'put',
+  path: '/{id}',
+  tags: ['Users'],
+  summary: 'Update user',
+  description: 'Update an existing user',
+  request: {
+    params: userIdParamSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: updateUserSchema
         }
       }
-      
-      return c.json({
-        success: true,
-        removed: removedCount,
-        synced: syncedCount,
-        errors: errors.length > 0 ? errors : undefined
-      })
-    } catch (error) {
-      console.error('Failed to sync users:', error)
-      return c.json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      }, 500)
     }
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: selectUserSchema
+        }
+      },
+      description: 'User updated successfully'
+    },
+    ...errorResponses
+  }
+})
+
+const deleteUserRoute = createRoute({
+  method: 'delete',
+  path: '/{id}',
+  tags: ['Users'],
+  summary: 'Delete user',
+  description: 'Delete a user',
+  request: {
+    params: userIdParamSchema
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: deleteUserResponseSchema
+        }
+      },
+      description: 'User deleted successfully'
+    },
+    ...errorResponses
+  }
+})
+
+// Clerk sync schemas
+const syncUserResponseSchema = z.object({
+  success: z.boolean(),
+  user: selectUserSchema
+}).openapi('SyncUserResponse')
+
+const clerkWebhookSchema = z.object({
+  data: z.object({
+    id: z.string(),
+    email_addresses: z.array(z.object({
+      email_address: z.string().email()
+    })),
+    first_name: z.string(),
+    last_name: z.string(),
+    image_url: z.string().optional()
   })
+}).openapi('ClerkWebhookEvent')
+
+// Clerk sync route definitions
+const syncUserRoute = createRoute({
+  method: 'post',
+  path: '/{id}/sync-clerk',
+  tags: ['Users'],
+  summary: 'Sync user with Clerk',
+  description: 'Synchronize user data with Clerk authentication service',
+  request: {
+    params: userIdParamSchema
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: syncUserResponseSchema
+        }
+      },
+      description: 'User synchronized successfully'
+    },
+    ...errorResponses
+  }
+})
+
+const syncFromClerkRoute = createRoute({
+  method: 'post',
+  path: '/sync-from-clerk',
+  tags: ['Users'],
+  summary: 'Sync from Clerk webhook',
+  description: 'Handle Clerk webhook events to sync user data',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: clerkWebhookSchema
+        }
+      }
+    }
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: syncUserResponseSchema
+        }
+      },
+      description: 'User synchronized successfully'
+    },
+    ...errorResponses
+  }
+})
+
+// Clerk sync route handlers
+app.openapi(syncUserRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const userService = new UserService({ 
+    context: c, 
+    logger: c.env.logger
+  })
+  const user = await userService.getUserById(id)
+  if (!user) {
+    throw notFound('User')
+  }
+  
+  const clerkEvent: ClerkWebhookEvent = {
+    data: {
+      id: user.clerkId || '',
+      first_name: user.firstName,
+      last_name: user.lastName,
+      email_addresses: [{
+        email_address: user.email,
+        id: generateId()
+      }],
+      created_at: Date.parse(user.createdAt),
+      updated_at: Date.parse(user.updatedAt)
+    },
+    object: 'event',
+    type: 'user.updated'
+  }
+  
+  const updatedUser = await syncUser(c, clerkEvent)
+  return c.json({ 
+    success: true,
+    user: updatedUser
+  })
+})
+
+app.openapi(syncFromClerkRoute, async (c) => {
+  const data = c.req.valid('json')
+  const userService = new UserService({ 
+    context: c, 
+    logger: c.env.logger
+  })
+  
+  const clerkUser = data.data
+  const existingUser = await userService.getUserByClerkId(clerkUser.id)
+  
+  if (existingUser) {
+    const updatedUser = await userService.updateUser(existingUser.id, {
+      email: clerkUser.email_addresses[0]?.email_address,
+      firstName: clerkUser.first_name,
+      lastName: clerkUser.last_name,
+      imageUrl: clerkUser.image_url
+    })
+    return c.json({ 
+      success: true,
+      user: updatedUser
+    })
+  }
+  
+  const newUser = await userService.createUser({
+    clerkId: clerkUser.id,
+    email: clerkUser.email_addresses[0]?.email_address,
+    firstName: clerkUser.first_name,
+    lastName: clerkUser.last_name,
+    imageUrl: clerkUser.image_url
+  } as CreateUserInput)
+  
+  return c.json({ 
+    success: true,
+    user: newUser
+  })
+})
+
+// Route handlers
+app.openapi(listUsersRoute, async (c) => {
+  const query = c.req.valid('query')
+  const userService = new UserService({ 
+    context: c, 
+    logger: c.env.logger
+  })
+  const users = await userService.getUsers()
+  return c.json({ 
+    users,
+    total: users.length
+  })
+})
+
+app.openapi(createUserRoute, async (c) => {
+  const data = c.req.valid('json')
+  const userService = new UserService({ 
+    context: c, 
+    logger: c.env.logger
+  })
+  const user = await userService.createUser({
+    ...data,
+    clerkId: generateId()
+  } as CreateUserInput)
+  return c.json(user, 201)
+})
+
+app.openapi(getUserRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const userService = new UserService({ 
+    context: c, 
+    logger: c.env.logger
+  })
+  const user = await userService.getUserById(id)
+  if (!user) {
+    throw notFound('User')
+  }
+  return c.json(user)
+})
+
+app.openapi(updateUserRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const data = c.req.valid('json')
+  const userService = new UserService({ 
+    context: c, 
+    logger: c.env.logger
+  })
+  const user = await userService.updateUser(id, data as UpdateUserInput)
+  return c.json(user)
+})
+
+app.openapi(deleteUserRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const userService = new UserService({ 
+    context: c, 
+    logger: c.env.logger
+  })
+  await userService.deleteUser(id)
+  return c.json({ success: true })
+})
 
 export type UsersType = typeof app
 export default app 
