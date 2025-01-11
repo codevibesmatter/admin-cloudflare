@@ -38,7 +38,7 @@ app.doc('/api/docs', {
 })
 
 // Serve Swagger UI
-app.get('/api/swagger', swaggerUI({ url: '/api/docs' }))
+app.get('/api/swagger', swaggerUI({ url: '/api/docs' }) as any)
 
 // Initialize environment and database
 app.use('*', async (c, next) => {

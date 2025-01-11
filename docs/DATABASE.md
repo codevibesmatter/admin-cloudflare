@@ -1,199 +1,355 @@
 # Database and API Documentation
 
-## Authentication
+## Database Architecture
 
-### Token Handling
-The application uses Clerk for authentication. Each API request requires a valid JWT token in the Authorization header. The token handling has been implemented with the following considerations:
+The application uses a hybrid approach with Turso:
+1. **Drizzle ORM**: For schema management and migrations
+2. **Raw libSQL**: For database queries and operations
 
-1. **Fresh Tokens**: Each API request gets a fresh token using Clerk's `getToken()` function to ensure token validity
-2. **Explicit Token Checks**: Every request verifies token existence before making the call
-3. **Error Handling**: Proper error handling for missing or invalid tokens
-4. **No Retries**: Auth errors (401) are not retried to prevent unnecessary API calls
-5. **Header Format**: Tokens are sent in the Authorization header using the Bearer scheme:
-   ```
-   Authorization: Bearer <token>
-   ```
+This setup combines the best of both worlds:
+- Type-safe schema management and migrations with Drizzle
+- Direct, performant database access with libSQL
+- Optimized for edge computing and serverless environments
 
-### Protected Routes
-All user-related API endpoints (`/api/v1/users/*`) are protected by the auth middleware. This includes:
-- GET /v1/users (list/search users)
-- POST /v1/users (create user)
-- PATCH /v1/users/:id (update user)
-- DELETE /v1/users/:id (delete user)
+### Core Components
 
-## Data Models
+1. **Drizzle**: Schema and migration management
+   - Type-safe schema definitions
+   - Automated migration generation and management
+   - Database schema versioning
+   - Database inspection via Drizzle Studio
 
-### Users
-The user model includes the following fields:
-- `id`: UUID primary key
-- `email`: String (unique)
-- `name`: String
-- `role`: String (enum: admin, user)
-- `createdAt`: DateTime (auto-generated)
-- `updatedAt`: DateTime (auto-updated)
+2. **@libsql/client**: Direct database access
+   - Handles database connections and queries
+   - Provides both libSQL and HTTP protocol support
+   - Built-in connection retries and failover
 
-## Pagination
+3. **Hono + Turso**: Request handling and database context
+   - Per-request database connections (optimized for serverless)
+   - Environment variable management through Hono's context
+   - Connection lifecycle management tied to request lifecycle
 
-The API supports cursor-based pagination for listing users:
-
-### Query Parameters
-- `limit`: Number of items per page (default: 25, max: 100)
-- `cursor`: Timestamp-based cursor for pagination
-- `sortField`: Field to sort by (default: createdAt)
-- `sortOrder`: Sort direction (asc/desc, default: desc)
-
-### Response Format
-```typescript
-{
-  items: User[],
-  total: number,
-  nextCursor?: string
-}
+### Project Structure
+```
+db/
+├── schema/                # Drizzle schema definitions
+│   ├── index.ts          # Schema exports
+│   ├── users.ts          # User table schema
+│   └── organizations.ts   # Organization table schema
+├── migrations/           # Generated migrations
+├── services/            # Database services
+│   ├── base.ts         # Base service with common functionality
+│   ├── users.ts        # User operations
+│   ├── organizations.ts # Organization operations
+│   └── members.ts      # Organization member operations
+└── config.ts           # Database configuration
 ```
 
-## Database Implementation
+### Schema Management with Drizzle
 
-The application uses Turso with Drizzle ORM for type-safe database operations. Key features include:
+Define your schemas using Drizzle's type-safe definitions:
 
-1. **Type Safety**: Full TypeScript support through Drizzle ORM
-2. **Migrations**: Automated schema migrations using Drizzle Kit
-3. **Connection Management**: Reusable client pattern for database connections
-4. **Query Building**: Type-safe query building with Drizzle's query builder
-5. **Timestamps**: Automatic handling of createdAt/updatedAt fields
+```typescript
+// schema/users.ts
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+
+export const users = sqliteTable('users', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull(),
+  firstName: text('first_name').notNull(),
+  lastName: text('last_name').notNull(),
+  role: text('role', { enum: ['admin', 'user'] }).notNull().default('user'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull()
+})
+
+// Types are inferred from the schema
+export type User = typeof users.$inferSelect
+export type NewUser = typeof users.$inferInsert
+```
+
+### Database Commands
+
+```bash
+# Generate migrations from schema changes
+pnpm db:generate
+
+# Apply migrations to the database
+pnpm db:migrate
+
+# Launch Drizzle Studio for database inspection
+pnpm db:studio
+```
 
 ### Environment Setup
 
-1. **Required Variables**
-   ```bash
-   # Turso Database Configuration
-   TURSO_DATABASE_URL=libsql://your-database-url
-   TURSO_AUTH_TOKEN=your-auth-token
-   ```
+Required environment variables in `.dev.vars`:
+```bash
+# Database
+TURSO_DATABASE_URL="libsql://your-database-name.turso.io"  # Database URL from Turso
+TURSO_AUTH_TOKEN="your-auth-token"                         # Auth token from Turso CLI
+TURSO_ORG_GROUP="your-org"                                # Your Turso organization
+TURSO_ORG_TOKEN="your-org-token"                          # Organization token for management
+```
 
-2. **Development Environment**
-   - Create `.dev.vars` in `apps/api` directory
-   - Add Turso credentials (never commit to version control)
-   - Variables are loaded automatically by Wrangler
+To get these values:
+```bash
+# Get database URL
+turso db show your-database-name --url
 
-### Migration Workflow
+# Create auth token
+turso db tokens create your-database-name
 
-1. **Making Schema Changes**
-   - Add or modify schema in `apps/api/src/db/schema.ts`
-   - Only add new columns/tables, never modify existing ones directly
-   - Always make columns nullable when adding to existing tables
+# List organizations
+turso org list
 
-2. **Generating Migrations**
-   ```bash
-   cd apps/api
-   pnpm run db:generate
-   ```
+# Create organization token
+turso org tokens create
+```
 
-3. **Reviewing Migrations**
-   - Generated migrations are in `apps/api/drizzle/`
-   - For existing tables, modify the generated SQL to use ALTER TABLE
-   - Remove any recreation of existing tables/indexes
-   - Keep only the new changes you want to apply
+### Database Connection Setup
 
-4. **Applying Migrations**
-   ```bash
-   pnpm run db:migrate
-   ```
+The database connection is managed through a central configuration (`src/db/config.ts`):
 
-### Migration Best Practices
+```typescript
+import { createClient } from '@libsql/client'
+import type { Client } from '@libsql/client'
+import type { HonoContext } from '../types'
 
-1. **Adding New Columns**
-   ```sql
-   -- DO: Add nullable columns to existing tables
-   ALTER TABLE users ADD COLUMN new_field text;
-   
-   -- DO: Add indexes separately
-   CREATE INDEX idx_users_new_field ON users(new_field);
-   ```
+export async function createDatabase(context: HonoContext): Promise<Client> {
+  if (!context.env.TURSO_DATABASE_URL) {
+    throw new Error('TURSO_DATABASE_URL is required')
+  }
+  if (!context.env.TURSO_AUTH_TOKEN) {
+    throw new Error('TURSO_AUTH_TOKEN is required')
+  }
 
-2. **Creating New Tables**
-   ```sql
-   -- Full table creation is fine for new tables
-   CREATE TABLE new_table (
-     id text PRIMARY KEY,
-     name text NOT NULL,
-     created_at text NOT NULL
-   );
-   ```
+  try {
+    // Try libSQL protocol first (faster)
+    const libsqlUrl = context.env.TURSO_DATABASE_URL
+    try {
+      const libsqlClient = createClient({ 
+        url: libsqlUrl,
+        authToken: context.env.TURSO_AUTH_TOKEN
+      })
+      await libsqlClient.execute('SELECT 1')
+      return libsqlClient
+    } catch (libsqlError) {
+      // Fallback to HTTP protocol
+      const httpUrl = libsqlUrl.replace('libsql://', 'https://')
+      const httpClient = createClient({ 
+        url: httpUrl,
+        authToken: context.env.TURSO_AUTH_TOKEN
+      })
+      await httpClient.execute('SELECT 1')
+      return httpClient
+    }
+  } catch (error) {
+    throw error
+  }
+}
+```
 
-3. **Modifying Existing Tables**
-   - Always use ALTER TABLE for existing tables
-   - Make new columns nullable initially
-   - Add constraints after data migration if needed
-   - Use separate migrations for complex changes
+### Service Layer Architecture
 
-4. **Common Patterns**
-   ```sql
-   -- Adding a nullable column
-   ALTER TABLE users ADD COLUMN field_name text;
-   
-   -- Adding a unique column
-   ALTER TABLE users ADD COLUMN unique_field text;
-   CREATE UNIQUE INDEX idx_unique_field ON users(unique_field);
-   
-   -- Adding a foreign key
-   ALTER TABLE users ADD COLUMN ref_id text REFERENCES other_table(id);
-   CREATE INDEX idx_ref_id ON users(ref_id);
-   ```
+The database layer uses a service-based architecture where each domain has its own service class:
 
-### Troubleshooting Migrations
+```
+db/
+├── services/
+│   ├── base.ts         # Base service with common functionality
+│   ├── users.ts        # User operations
+│   ├── organizations.ts # Organization operations
+│   └── members.ts      # Organization member operations
+└── config.ts           # Database configuration and connection
+```
 
-1. **Migration Failed**
-   - Check if tables/columns already exist
-   - Remove table creation for existing tables
-   - Keep only ALTER TABLE statements
-   - Verify index names are unique
-   - Check Turso connection and credentials
+#### Base Service
 
-2. **Data Consistency**
-   - Always make new columns nullable
-   - Add data migration steps if needed
-   - Use transactions for complex changes
-   - Test migrations locally before production
+The `BaseService` class provides common functionality for all services (`src/db/services/base.ts`):
 
-3. **Recovery Steps**
-   - Contact Turso support for database restore if needed
-   - Keep backup of schema changes
-   - Test migrations locally before applying to production
-   - Use Turso's backup features when available
+```typescript
+import type { Client } from '@libsql/client'
+import type { Logger } from '../../lib/logger'
+import type { HonoContext } from '../../types'
+import { createDatabase } from '../config'
 
-### Database Operations
+export interface ServiceConfig {
+  logger: Logger
+  context: HonoContext
+}
 
-1. **Connection Management**
+export class DatabaseError extends Error {
+  constructor(message: string, public cause?: unknown) {
+    super(message)
+    this.name = 'DatabaseError'
+  }
+}
+
+export class BaseService {
+  protected db?: Client
+  protected logger: Logger
+  protected context: HonoContext
+
+  constructor(config: ServiceConfig) {
+    this.logger = config.logger
+    this.context = config.context
+  }
+
+  protected async initDb() {
+    if (!this.db) {
+      this.db = await createDatabase(this.context)
+    }
+    return this.db
+  }
+
+  protected logError(message: string, error: unknown) {
+    this.logger.error(message, {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+
+  protected async query<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      await this.initDb()
+      return await fn()
+    } catch (error) {
+      this.logError('Database query failed', error)
+      throw error
+    }
+  }
+}
+```
+
+### Writing Services
+
+Example of a service implementation using raw SQL queries:
+
+```typescript
+export class UserService extends BaseService {
+  async getUsers(): Promise<User[]> {
+    return this.query(async () => {
+      const result = await this.db!.execute(`
+        SELECT * FROM users
+        ORDER BY created_at DESC
+      `)
+      return result.rows as User[]
+    })
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    return this.query(async () => {
+      const result = await this.db!.execute({
+        sql: 'SELECT * FROM users WHERE id = ?',
+        args: [id]
+      })
+      return result.rows[0] as User | undefined
+    })
+  }
+
+  async createUser(input: CreateUserInput): Promise<User> {
+    return this.query(async () => {
+      const result = await this.db!.execute({
+        sql: `
+          INSERT INTO users (id, email, first_name, last_name, role, status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+          RETURNING *
+        `,
+        args: [
+          generateId(),
+          input.email,
+          input.firstName,
+          input.lastName,
+          input.role || 'user',
+          input.status || 'active'
+        ]
+      })
+      return result.rows[0] as User
+    })
+  }
+}
+```
+
+### Using Services in Routes
+
+Services are instantiated per request with the Hono context:
+
+```typescript
+// Initialize service with Hono context
+app.get('/api/users', async (c) => {
+  const userService = new UserService({ 
+    context: c,
+    logger: c.env.logger
+  })
+
+  try {
+    const users = await userService.getUsers()
+    return c.json(users)
+  } catch (error) {
+    if (error instanceof DatabaseError) {
+      c.status(500)
+      return c.json({ error: 'Database operation failed' })
+    }
+    throw error
+  }
+})
+```
+
+### Best Practices
+
+1. **SQL Queries**:
    ```typescript
-   // DO: Use the getDatabaseClient helper
-   const db = getDatabaseClient(env);
-   
-   // DON'T: Create new connections manually
-   const db = createClient({ url: env.TURSO_DATABASE_URL });
+   // DO: Use parameterized queries for safety
+   await db.execute({
+     sql: 'SELECT * FROM users WHERE id = ?',
+     args: [userId]
+   })
+
+   // DON'T: Use string concatenation
+   await db.execute(`SELECT * FROM users WHERE id = '${userId}'`) // UNSAFE!
    ```
 
-2. **Query Patterns**
+2. **Service Usage**:
    ```typescript
-   // DO: Use type-safe queries
-   const user = await db
-     .select()
-     .from(users)
-     .where(eq(users.id, id))
-     .get();
-   
-   // DON'T: Use raw SQL
-   const user = await db.execute('SELECT * FROM users');
+   // DO: Create new service instances per request
+   const userService = new UserService({ context: c, logger: c.env.logger })
+
+   // DON'T: Share service instances between requests
+   // DON'T: Access database directly without going through services
    ```
 
-3. **Error Handling**
+3. **Error Handling**:
    ```typescript
-   // DO: Handle database errors gracefully
    try {
-     const result = await db.select().from(users).all();
+     const result = await service.createUser(data)
    } catch (error) {
-     logger.error('Database error:', error);
-     throw new DatabaseError('Failed to fetch users');
+     if (error instanceof DatabaseError) {
+       // Log and handle database errors appropriately
+       c.status(500)
+       return c.json({ error: 'Database operation failed' })
+     }
+     throw error
    }
    ```
 
-For detailed database setup and configuration, refer to `apps/api/DATABASE.md`. 
+4. **Connection Management**:
+   ```typescript
+   // DO: Let the BaseService handle database connections
+   protected async query<T>(fn: () => Promise<T>): Promise<T>
+
+   // DON'T: Create database connections manually in services
+   ```
+
+### Testing the Setup
+
+You can test the database connection using the health check endpoint:
+
+```bash
+# Test database connection
+curl http://localhost:8787/api/health
+
+# Expected response
+{"status":"healthy","database":"connected"}
+```
+
+For detailed API documentation and endpoint specifications, refer to the API section below. 

@@ -75,7 +75,7 @@ export class OrganizationService extends BaseService {
   }
 
   async updateOrganization(id: string, input: UpdateOrganizationInput): Promise<Organization> {
-    try {
+    return this.query(async () => {
       // Build dynamic SET clause and args array
       const updates: string[] = []
       const args: any[] = []
@@ -115,10 +115,7 @@ export class OrganizationService extends BaseService {
       }
 
       return rowToOrganization(result.rows[0] as Record<string, any>)
-    } catch (error) {
-      this.logError('Failed to update organization', error)
-      throw new DatabaseError('Failed to update organization', error)
-    }
+    })
   }
 
   async deleteOrganization(id: string): Promise<void> {
@@ -137,17 +134,14 @@ export class OrganizationService extends BaseService {
     }
   }
 
-  async getByClerkId(clerk_id: string): Promise<Organization | undefined> {
-    try {
+  async getByClerkId(clerkId: string): Promise<Organization | undefined> {
+    return this.query(async () => {
       const result = await this.db!.execute({
         sql: 'SELECT * FROM organizations WHERE clerk_id = ?',
-        args: [clerk_id]
+        args: [clerkId]
       })
       const row = result.rows[0]
       return row ? rowToOrganization(row as Record<string, any>) : undefined
-    } catch (error) {
-      this.logError('Failed to get organization by Clerk ID', error)
-      throw new DatabaseError('Failed to get organization by Clerk ID', error)
-    }
+    })
   }
 } 

@@ -5,16 +5,20 @@
   "description": "Cloudflare Worker for handling various webhook integrations",
   "scripts": {
     "dev": "wrangler dev src/index.ts",
-    "tunnel": "cloudflared tunnel run webhook-worker",
+    "build": "wrangler build",
+    "tunnel": "cd $PWD && cloudflared tunnel --config $PWD/.cloudflared/config.yml run webhook-worker",
     "deploy": "wrangler deploy src/index.ts"
   },
   "dependencies": {
+    "@admin-cloudflare/api-types": "workspace:*",
     "@clerk/backend": "^1.21.4",
-    "hono": "^4.6.15"
+    "hono": "^4.6.15",
+    "pino": "^8.17.2",
+    "pino-pretty": "^10.3.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20231218.0",
-    "typescript": "^5.0.0",
-    "wrangler": "^3.99.0"
+    "typescript": "^5.3.3",
+    "wrangler": "^3.22.1"
   }
 } 

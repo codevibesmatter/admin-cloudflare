@@ -1,48 +1,68 @@
 /// <reference types="@cloudflare/workers-types" />
-import { Hono } from 'hono'
 import { z } from 'zod'
-import { zValidator } from '@hono/zod-validator'
 import type { D1Database } from '@cloudflare/workers-types'
+import {
+  webhookEventSchema,
+  userEventSchema,
+  organizationEventSchema,
+  membershipEventSchema,
+  type WebhookEvent,
+  type UserEvent,
+  type OrganizationEvent,
+  type MembershipEvent
+} from './webhooks'
+import {
+  type User,
+  type Organization,
+  type GetUsersResponse,
+  type GetOrganizationsResponse,
+  type UserCreate,
+  type UserUpdate,
+  type OrganizationCreate,
+  type OrganizationUpdate,
+  userCreateSchema,
+  userUpdateSchema,
+  organizationCreateSchema,
+  organizationUpdateSchema
+} from './types'
 
-// Zod schemas for validation
-export const userRoleSchema = z.enum(['superadmin', 'admin', 'manager', 'cashier'])
-export const userStatusSchema = z.enum(['active', 'inactive', 'invited', 'suspended'])
+// Export error types
+export type {
+  APIErrorResponse,
+  ValidationErrorResponse,
+  DatabaseErrorResponse,
+  SyncErrorResponse
+} from './errors'
 
-export const userCreateSchema = z.object({
-  email: z.string().email(),
-  firstName: z.string(),
-  lastName: z.string(),
-  role: z.enum(['superadmin', 'admin', 'manager', 'cashier']),
-})
+export {
+  errorCodes,
+  errorSchema,
+  validationErrorSchema,
+  databaseErrorSchema,
+  syncErrorSchema,
+  createAPIError,
+  createValidationError,
+  createDatabaseError,
+  createSyncError
+} from './errors'
 
-export const userUpdateSchema = userCreateSchema.partial().extend({
-  status: z.enum(['active', 'inactive', 'invited', 'suspended']).optional(),
-})
+// Re-export webhook types and schemas
+export {
+  webhookEventSchema,
+  userEventSchema,
+  organizationEventSchema,
+  membershipEventSchema,
+  type WebhookEvent,
+  type UserEvent,
+  type OrganizationEvent,
+  type MembershipEvent
+} from './webhooks'
 
-// User types
-export interface User {
-  id: string
-  email: string
-  firstName: string
-  lastName: string
-  role: 'superadmin' | 'admin' | 'manager' | 'cashier'
-  status: 'active' | 'inactive' | 'invited' | 'suspended'
-  clerkId?: string
-  createdAt: string
-  updatedAt: string
-}
+// Export route types
+export * from './routes'
 
-export type UserCreate = z.infer<typeof userCreateSchema>
-export type UserUpdate = z.infer<typeof userUpdateSchema>
-
-export interface GetUsersResponse {
-  data: {
-    users: User[]
-  }
-  meta: {
-    timestamp: string
-  }
-}
+// Export common types and schemas
+export * from './types'
 
 // Environment type
 export interface Env {
@@ -52,9 +72,6 @@ export interface Env {
   }
   Variables: {}
 }
-
-// Create the app with routes
-const app = new Hono<Env>()
 
 // Define route types
 export type Routes = {
@@ -89,36 +106,37 @@ export type Routes = {
       response: { success: true }
     }
   }
-}
-
-// Chain the handlers for proper type inference
-const route = app
-  .get('/users', (c) => c.json<GetUsersResponse>({
-    data: {
-      users: [],
-    },
-    meta: {
-      timestamp: new Date().toISOString()
+  '/organizations': {
+    get: {
+      response: GetOrganizationsResponse
     }
-  }))
-  .post('/users', 
-    zValidator('json', userCreateSchema),
-    (c) => c.json<User>({} as User)
-  )
-  .get('/users/:id', (c) => c.json<User>({} as User))
-  .put('/users/:id',
-    zValidator('json', userUpdateSchema),
-    (c) => c.json<User>({} as User)
-  )
-  .delete('/users/:id', 
-    (c) => c.json<{ success: true }>({ success: true })
-  )
-  .post('/users/:id/sync-clerk',
-    (c) => c.json<User>({} as User)
-  )
-  .post('/users/sync-from-clerk',
-    (c) => c.json<{ success: true }>({ success: true })
-  )
-
-// Export the route type for the client
-export type AppType = typeof route 
+    post: {
+      request: OrganizationCreate
+      response: Organization
+    }
+  }
+  '/organizations/:organizationId': {
+    get: {
+      response: Organization
+    }
+    patch: {
+      request: OrganizationUpdate
+      response: Organization
+    }
+    delete: {
+      response: { success: true }
+    }
+  }
+  '/organizations/set-active': {
+    post: {
+      request: { organizationId: string }
+      response: { success: true }
+    }
+  }
+  '/webhooks/clerk': {
+    post: {
+      request: WebhookEvent
+      response: { success: true }
+    }
+  }
+} 

@@ -5,31 +5,6 @@ import type { AppType, User, UserCreate, UserUpdate, GetUsersResponse } from '@a
 // Base URL from environment variable
 const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8787'
 
-// Base fetch function that adds auth and handles paths
-const baseFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-  const { getToken } = useAuth()
-  const token = await getToken()
-  
-  // Convert input to URL
-  const url = input instanceof URL ? input : new URL(input.toString(), baseURL)
-  
-  // Remove any duplicate /api prefixes and /n
-  const path = url.pathname
-    .replace(/^\/api/, '')  // Remove leading /api if present
-    .replace(/\/n\//, '/')  // Remove /n/
-  
-  // Create final URL
-  const finalUrl = new URL('/api' + path, baseURL)
-  
-  return fetch(finalUrl, {
-    ...init,
-    headers: {
-      ...init?.headers,
-      Authorization: token ? `Bearer ${token}` : '',
-    },
-  })
-}
-
 // Error class for API responses
 export class APIError extends Error {
   constructor(
@@ -133,6 +108,68 @@ export function useApi() {
         .catch((error: Error & { status?: number }) => {
           throw new APIError(
             error.message || 'Failed to sync from Clerk',
+            error.status || 500,
+            'API_ERROR'
+          )
+        })
+    },
+    organizations: {
+      list: () => client.organizations.$get()
+        .then((res: Response) => res.json())
+        .catch((error: Error & { status?: number }) => {
+          throw new APIError(
+            error.message || 'Failed to fetch organizations',
+            error.status || 500,
+            'API_ERROR'
+          )
+        }),
+      create: (data: { name: string; slug: string; databaseId: string; clerkId: string }) => 
+        client.organizations.$post({ json: data })
+        .then((res: Response) => res.json())
+        .catch((error: Error & { status?: number }) => {
+          throw new APIError(
+            error.message || 'Failed to create organization',
+            error.status || 500,
+            'API_ERROR'
+          )
+        }),
+      get: (id: string) => client.organizations[':organizationId'].$get({ param: { organizationId: id } })
+        .then((res: Response) => res.json())
+        .catch((error: Error & { status?: number }) => {
+          throw new APIError(
+            error.message || 'Failed to get organization',
+            error.status || 500,
+            'API_ERROR'
+          )
+        }),
+      update: (id: string, data: Partial<{ name: string; slug: string; databaseId: string }>) => 
+        client.organizations[':organizationId'].$patch({ 
+          param: { organizationId: id },
+          json: data 
+        })
+        .then((res: Response) => res.json())
+        .catch((error: Error & { status?: number }) => {
+          throw new APIError(
+            error.message || 'Failed to update organization',
+            error.status || 500,
+            'API_ERROR'
+          )
+        }),
+      delete: (id: string) => client.organizations[':organizationId'].$delete({ param: { organizationId: id } })
+        .then(() => undefined)
+        .catch((error: Error & { status?: number }) => {
+          throw new APIError(
+            error.message || 'Failed to delete organization',
+            error.status || 500,
+            'API_ERROR'
+          )
+        }),
+      setActive: (data: { organizationId: string }) => 
+        client.organizations['set-active'].$post({ json: data })
+        .then((res: Response) => res.json())
+        .catch((error: Error & { status?: number }) => {
+          throw new APIError(
+            error.message || 'Failed to set active organization',
             error.status || 500,
             'API_ERROR'
           )

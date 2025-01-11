@@ -6,6 +6,7 @@ import { SearchProvider } from '@/context/search-context'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import SkipToMain from '@/components/skip-to-main'
 import Cookies from 'js-cookie'
+import { useOnboardingGuard } from '../../features/auth/onboarding'
 
 export const Route = createFileRoute('/_authenticated')({
   component: AuthenticatedLayout,
@@ -13,6 +14,7 @@ export const Route = createFileRoute('/_authenticated')({
 
 function AuthenticatedLayout() {
   const defaultOpen = Cookies.get('sidebar:state') !== 'false'
+  useOnboardingGuard()
 
   return (
     <ProtectedRoute>

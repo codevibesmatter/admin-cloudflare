@@ -30,14 +30,9 @@ export interface TransformedEvent {
 export interface Env {
   // Clerk
   CLERK_WEBHOOK_SECRET: string
-  // Stripe
-  // STRIPE_WEBHOOK_SECRET: string
-  // GitHub
-  // GITHUB_WEBHOOK_SECRET: string
   
   // API configuration
   API_URL: string
-  API_SECRET: string
 }
 
 // Add other shared types as needed 

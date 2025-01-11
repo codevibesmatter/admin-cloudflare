@@ -2,7 +2,7 @@
 
 ## Overview
 
-Our application uses Clerk for authentication, providing a secure and seamless authentication experience. The implementation spans both the frontend web application and the backend API.
+Our application uses Clerk for authentication and organization management, providing a secure and seamless experience. The implementation spans both the frontend web application and the backend API, with webhook integration for real-time synchronization.
 
 ## Frontend Implementation
 
@@ -19,8 +19,8 @@ export function ClerkProviderWithTheme({ children }: { children: ReactNode }) {
   return (
     <ClerkProvider
       publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}
-      afterSignInUrl="/"
-      afterSignUpUrl="/"
+      afterSignInUrl="/onboarding"
+      afterSignUpUrl="/onboarding"
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
       appearance={{
@@ -58,33 +58,63 @@ function SignUpPage() {
 }
 ```
 
-### Theme Integration
+### Organization Management
 
-The application supports both light and dark themes through Clerk's theming system. Key considerations:
+1. **Organization Provider**
+```typescript
+// apps/web/src/features/organizations/organization-provider.tsx
+export function OrganizationProvider({ children }: { children: ReactNode }) {
+  const { organization } = useOrganization()
+  const { getToken } = useAuth()
+  const api = useApi()
 
-1. **Theme Detection**
-   - Uses application's theme context
-   - Supports system theme preference
-   - Automatically switches between light and dark modes
+  useEffect(() => {
+    if (!organization) return
 
-2. **Input Styling**
-   - Uses Clerk's default input styling
-   - Handles browser autofill appearance through CSS:
-   ```css
-   input:-webkit-autofill,
-   input:-webkit-autofill:hover,
-   input:-webkit-autofill:focus,
-   input:-webkit-autofill:active {
-     -webkit-background-clip: text;
-     -webkit-text-fill-color: hsl(var(--foreground));
-     transition: background-color 5000s ease-in-out 0s;
-     box-shadow: inset 0 0 20px 20px rgb(31, 31, 35);
-   }
-   ```
+    // Sync organization selection with backend
+    const syncOrg = async () => {
+      const token = await getToken()
+      if (!token) return
+
+      await api.organizations.setActive({
+        organizationId: organization.id
+      })
+    }
+
+    syncOrg().catch(console.error)
+  }, [organization?.id])
+
+  return <>{children}</>
+}
+```
+
+2. **Organization Switcher**
+```typescript
+// apps/web/src/components/layout/team-switcher.tsx
+export function TeamSwitcher() {
+  const { organization } = useOrganization()
+  const { userMemberships } = useOrganizationList()
+
+  return (
+    <OrganizationSwitcher
+      appearance={{
+        elements: {
+          rootBox: "w-full",
+          organizationSwitcherTrigger: 
+            "w-full flex justify-between items-center gap-2 rounded-md p-2 hover:bg-accent",
+        }
+      }}
+      afterCreateOrganizationUrl="/organization/:id/settings"
+      afterLeaveOrganizationUrl="/select-org"
+      afterSelectOrganizationUrl="/organization/:id/dashboard"
+    />
+  )
+}
+```
 
 ### Protected Routes
 
-Routes are protected using Clerk's authentication:
+Routes are protected using Clerk's authentication and organization context:
 
 1. **Public Routes**
    - Sign In (`/sign-in`)
@@ -93,8 +123,14 @@ Routes are protected using Clerk's authentication:
 
 2. **Protected Routes**
    - Dashboard (`/`)
+   - Organization Settings (`/organization/:id/settings`)
    - User Profile (`/profile`)
    - Settings (`/settings`)
+
+3. **Onboarding Routes**
+   - Initial Setup (`/onboarding`)
+   - Create Organization (`/onboarding/create-organization`)
+   - Complete Setup (`/onboarding/complete`)
 
 ## Backend Implementation
 
@@ -102,13 +138,98 @@ Routes are protected using Clerk's authentication:
 
 1. **Token Validation**
    - Uses Clerk's middleware for token validation
-   - Extracts user ID from validated tokens
+   - Extracts user ID and organization context from tokens
    - Handles unauthorized access with proper error responses
 
 2. **Protected Endpoints**
    - All API routes under `/api/*` are protected by default
    - Requires valid Clerk session token
    - Access user ID via `c.get('userId')`
+   - Access organization ID via `c.get('organizationId')`
+
+### Webhook Integration
+
+1. **Webhook Handler**
+```typescript
+// apps/webhook-worker/src/webhooks/clerk.ts
+const webhookSchema = z.object({
+  data: z.object({
+    id: z.string(),
+    organization: z.object({
+      id: z.string(),
+      name: z.string(),
+      slug: z.string(),
+      created_by: z.string(),
+    }).optional(),
+    user: z.object({
+      id: z.string(),
+      email_addresses: z.array(z.object({
+        email_address: z.string(),
+        verification: z.object({ status: z.string() }),
+      })),
+      first_name: z.string().nullable(),
+      last_name: z.string().nullable(),
+    }).optional(),
+  }),
+  type: z.enum([
+    'organization.created',
+    'organization.updated',
+    'organization.deleted',
+    'organizationMembership.created',
+    'organizationMembership.updated',
+    'organizationMembership.deleted',
+    'user.created',
+    'user.updated',
+    'user.deleted',
+  ]),
+})
+
+app.post('/', async (c) => {
+  const { data, type } = c.req.valid('json')
+
+  switch (type) {
+    case 'organization.created':
+      // Create organization in our database
+      await c.env.api.organizations.create({
+        clerkId: data.organization!.id,
+        name: data.organization!.name,
+        slug: data.organization!.slug,
+        createdBy: data.organization!.created_by,
+      })
+      break
+
+    case 'organizationMembership.created':
+      // Add member to organization
+      await c.env.api.organizations.addMember({
+        organizationId: data.organization!.id,
+        userId: data.user!.id,
+        role: data.role,
+      })
+      break
+
+    case 'user.created':
+      // Create user in our database
+      await c.env.api.users.create({
+        clerkId: data.user!.id,
+        email: data.user!.email_addresses[0].email_address,
+        firstName: data.user!.first_name,
+        lastName: data.user!.last_name,
+      })
+      break
+  }
+
+  return c.json({ success: true })
+})
+```
+
+2. **Webhook Configuration**
+```toml
+# apps/webhook-worker/wrangler.toml
+[vars]
+CLERK_WEBHOOK_SECRET = ""  # For webhook verification
+API_URL = ""              # Main API endpoint
+API_SECRET = ""           # For API authentication
+```
 
 ### Best Practices
 
@@ -132,30 +253,15 @@ Routes are protected using Clerk's authentication:
    fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } })
    ```
 
-3. **Error Handling**
+3. **Organization Context**
    ```typescript
-   // DO: Handle auth errors gracefully
-   try {
-     const token = await getToken()
-     if (!token) throw new Error('No auth token available')
-   } catch (error) {
-     // Handle authentication error
-   }
+   // DO: Use Clerk's organization hooks
+   const { organization } = useOrganization()
+   const { userMemberships } = useOrganizationList()
+   
+   // DON'T: Manage organization state manually
+   const [org, setOrg] = useState()
    ```
-
-## Common Issues and Solutions
-
-1. **Theme Inconsistencies**
-   - Issue: Input fields not matching theme
-   - Solution: Use Clerk's default theme and handle autofill styles
-
-2. **Token Expiration**
-   - Issue: API requests failing after session timeout
-   - Solution: Implement proper error handling and redirect to sign-in
-
-3. **Protected Route Access**
-   - Issue: Unauthorized access to protected routes
-   - Solution: Use Clerk's route protection components
 
 ## Environment Setup
 
@@ -166,12 +272,16 @@ VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
 
 # Backend (.dev.vars)
 CLERK_SECRET_KEY=sk_test_...
+CLERK_WEBHOOK_SECRET=whsec_...
 ```
 
 2. **Development Configuration**
 ```bash
 # Start development server
 pnpm run dev
+
+# Test webhook worker
+pnpm run dev:webhook
 
 # Test authentication flow
 pnpm run test
@@ -192,4 +302,148 @@ pnpm run test
 3. **Error Messages**
    - Generic error messages for auth failures
    - No sensitive information in responses
-   - Proper logging of auth issues 
+   - Proper logging of auth issues
+
+4. **Webhook Security**
+   - Webhook signatures verified
+   - Secure webhook secrets
+   - Rate limiting on webhook endpoints
+
+## Common Issues and Solutions
+
+1. **Theme Inconsistencies**
+   - Issue: Input fields not matching theme
+   - Solution: Use Clerk's default theme and handle autofill styles
+
+2. **Token Expiration**
+   - Issue: API requests failing after session timeout
+   - Solution: Implement proper error handling and redirect to sign-in
+
+3. **Organization Access**
+   - Issue: Users accessing wrong organization data
+   - Solution: Verify organization membership in middleware
+
+4. **Webhook Failures**
+   - Issue: Missing webhook events
+   - Solution: Implement webhook retry logic and monitoring 
+
+## Protected Files and Paths
+
+### 🚫 Do Not Modify
+These authentication-related files are critical and should not be modified without thorough review:
+
+```
+apps/api/src/
+├── middleware/
+│   └── auth.ts         # Clerk authentication middleware
+└── env.ts             # Environment type definitions (auth-related)
+```
+
+### ⚠️ Modify with Caution
+These files can be modified but require careful consideration:
+
+```
+apps/api/src/
+├── routes/
+│   └── webhooks/
+│       └── clerk.ts   # Clerk webhook handler
+└── lib/
+    └── response.ts    # Response wrapper (auth-related)
+```
+
+### Best Practices for Auth Files
+
+1. **Authentication Middleware (`auth.ts`)**
+   - Maintain the existing middleware order
+   - Don't modify core token validation logic
+   - Add new auth checks at appropriate points
+   - Keep error handling consistent
+
+2. **Environment Variables**
+   - Only add new auth-related variables
+   - Never remove existing auth variables
+   - Keep validation rules consistent
+   - Example:
+     ```typescript
+     // apps/api/src/env.ts
+     export interface Env {
+       // Existing auth variables - DO NOT REMOVE
+       CLERK_SECRET_KEY: string
+       CLERK_WEBHOOK_SECRET: string
+       
+       // Add new variables below
+       CLERK_NEW_FEATURE_KEY?: string
+     }
+     ```
+
+3. **Webhook Handler**
+   - Keep signature verification intact
+   - Maintain event type validation
+   - Add new event handlers safely
+   - Example for adding new events:
+     ```typescript
+     // apps/webhook-worker/src/webhooks/clerk.ts
+     const webhookSchema = z.object({
+       // ... existing schema ...
+       type: z.enum([
+         // Existing events - DO NOT REMOVE
+         'user.created',
+         'user.updated',
+         
+         // Add new events below
+         'user.new_event',
+       ]),
+     })
+     ```
+
+### Version Control Protection
+
+Consider adding these Git protections:
+
+```bash
+# .gitignore additions for sensitive files
+.env
+.dev.vars
+apps/api/src/middleware/auth.ts
+
+# Protected branches
+main
+staging
+```
+
+### Monitoring Auth Changes
+
+Monitor authentication files for unexpected changes:
+
+```bash
+# Git command to watch auth-related files
+git log --follow -- apps/api/src/middleware/auth.ts
+git log --follow -- apps/webhook-worker/src/webhooks/clerk.ts
+```
+
+### Recovery Procedures
+
+If auth files are accidentally modified:
+
+1. Revert changes immediately:
+   ```bash
+   git checkout main -- apps/api/src/middleware/auth.ts
+   ```
+
+2. Run auth-specific tests:
+   ```bash
+   pnpm run test:auth
+   ```
+
+3. Verify auth functionality:
+   ```bash
+   # Test sign in
+   curl -X POST http://localhost:8787/api/auth/verify \
+     -H "Authorization: Bearer $TEST_TOKEN"
+   
+   # Test webhook
+   curl -X POST http://localhost:8788/webhooks/clerk \
+     -H "svix-signature: $TEST_SIGNATURE" \
+     -H "Content-Type: application/json" \
+     -d '{"type": "user.created", ...}'
+   ``` 

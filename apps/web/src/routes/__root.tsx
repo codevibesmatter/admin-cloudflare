@@ -5,13 +5,14 @@ import { TanStackRouterDevtools } from '@tanstack/router-devtools'
 import { Toaster } from '@/components/ui/toaster'
 import GeneralError from '@/features/errors/general-error'
 import NotFoundError from '@/features/errors/not-found-error'
+import { OrganizationProvider } from '../features/auth/organization-provider'
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient
 }>()({
   component: () => {
     return (
-      <>
+      <OrganizationProvider>
         <Outlet />
         <Toaster />
         {import.meta.env.MODE === 'development' && (
@@ -20,7 +21,7 @@ export const Route = createRootRouteWithContext<{
             <TanStackRouterDevtools position='bottom-right' />
           </>
         )}
-      </>
+      </OrganizationProvider>
     )
   },
   notFoundComponent: NotFoundError,

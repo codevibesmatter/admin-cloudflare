@@ -23,13 +23,15 @@ apps/api/src/
 apps/api/src/middleware/
 ├── auth.ts               # Clerk authentication middleware
 ├── error.ts             # Central error handling
-└── logging.ts           # Logging middleware
+├── logging.ts           # Logging middleware
+└── organization.ts      # Organization context middleware
 ```
 
 ### Type Definitions
 ```
 packages/api-types/src/
-└── index.ts             # Shared type definitions
+├── index.ts             # Shared type definitions
+└── organizations.ts     # Organization type definitions
 ```
 
 ## ⚠️ Modify with Caution
@@ -40,13 +42,24 @@ These files can be modified but require careful consideration:
 ```
 apps/api/src/db/
 ├── schema.ts            # Database schema (add tables, don't modify existing)
-└── migrations/          # Database migrations (only add new ones)
+├── migrations/          # Database migrations (only add new ones)
+└── connection.ts        # Database connection management
 ```
 
 ### Routes
 ```
 apps/api/src/routes/
-└── index.ts            # Route mounting (add routes, don't modify existing)
+├── index.ts            # Route mounting (add routes, don't modify existing)
+└── webhooks/
+    └── clerk.ts        # Clerk webhook handler (organization events)
+```
+
+### Organization Management
+```
+apps/web/src/features/organizations/
+├── organization-provider.tsx    # Organization context provider
+└── hooks/
+    └── use-organization.ts     # Organization management hooks
 ```
 
 ## ✅ Safe to Modify
@@ -79,16 +92,19 @@ apps/web/src/features/
    - Only add new environment variables
    - Never remove existing variables
    - Keep validation rules consistent
+   - Maintain organization-specific variables together
 
 2. **Middleware Stack**
    - Maintain the existing order of middleware
    - Don't modify error handling logic
    - Add new middleware at appropriate points
+   - Keep organization context handling intact
 
 3. **Database Configuration**
    - Don't change initialization patterns
    - Maintain transaction handling
    - Keep connection pooling settings
+   - Preserve organization database isolation
    - Always verify actual database table structure before schema changes
    - Keep schema.ts synchronized with actual database structure
    - Use turso CLI to check current schema:
@@ -100,6 +116,13 @@ apps/web/src/features/
    - Keep the response structure consistent
    - Don't remove existing fields
    - Add new fields only when necessary
+   - Maintain organization context in responses
+
+5. **Organization Context**
+   - Preserve organization isolation
+   - Maintain role-based access control
+   - Keep organization switching logic intact
+   - Ensure proper cleanup on organization changes
 
 ## When Changes Are Needed
 
@@ -109,12 +132,16 @@ If you must modify protected files:
    - Reason for change
    - Impact assessment
    - Migration plan
+   - Effect on organization data
 
 2. Get approval from team lead
 
 3. Create a separate branch for changes
 
-4. Add comprehensive tests
+4. Add comprehensive tests:
+   - Unit tests for changes
+   - Integration tests for organization flows
+   - Migration tests if applicable
 
 5. Deploy to staging first
 
@@ -141,6 +168,7 @@ Monitor these files for unexpected changes:
 git log --follow -- apps/api/src/middleware/
 git log --follow -- apps/api/src/env.ts
 git log --follow -- apps/api/src/lib/response.ts
+git log --follow -- apps/api/src/middleware/organization.ts
 ```
 
 ## Recovery Procedures
@@ -161,4 +189,16 @@ If protected files are accidentally modified:
    ```bash
    pnpm run build
    pnpm run dev
+   ```
+
+4. Verify organization functionality:
+   ```bash
+   # Test organization creation
+   curl -X POST http://localhost:8787/api/organizations \
+     -H "Authorization: Bearer $TEST_TOKEN" \
+     -d '{"name": "Test Org"}'
+
+   # Test organization access
+   curl http://localhost:8787/api/organizations/$ORG_ID \
+     -H "Authorization: Bearer $TEST_TOKEN"
    ``` 

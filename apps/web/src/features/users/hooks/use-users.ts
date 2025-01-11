@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useApi } from '@/lib/api'
-import type { GetUsersResponse, UserCreate, UserUpdate, User } from '@admin-cloudflare/api-types'
-import { useAuth } from '@clerk/clerk-react'
+import type { GetUsersResponse, UserCreate, UserUpdate } from '@admin-cloudflare/api-types'
 
 // Query keys for React Query
 export const userKeys = {
@@ -17,10 +16,7 @@ export function useUsers() {
   
   return useQuery<GetUsersResponse>({
     queryKey: userKeys.lists(),
-    queryFn: async () => {
-      const response = await api.users.list()
-      return { users: response }
-    }
+    queryFn: () => api.users.list()
   })
 }
 

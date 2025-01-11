@@ -1,0 +1,1852 @@
+[1mdiff --git a/apps/api/.env.example b/apps/api/.env.example[m
+[1mdeleted file mode 100644[m
+[1mindex cf92664..0000000[m
+[1m--- a/apps/api/.env.example[m
+[1m+++ /dev/null[m
+[36m@@ -1,6 +0,0 @@[m
+[31m-# Environment[m
+[31m-ENVIRONMENT=development[m
+[31m-[m
+[31m-# Clerk Authentication[m
+[31m-CLERK_PUBLISHABLE_KEY=your_publishable_key[m
+[31m-CLERK_SECRET_KEY=your_secret_key [m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/apps/clerk-sync/cloudflared.rpm b/apps/api/apps/clerk-sync/cloudflared.rpm[m
+[1mdeleted file mode 100644[m
+[1mindex e1713b1..0000000[m
+Binary files a/apps/api/apps/clerk-sync/cloudflared.rpm and /dev/null differ
+[1mdiff --git a/apps/api/drizzle.config.ts b/apps/api/drizzle.config.ts[m
+[1mindex b129d35..30a41fb 100644[m
+[1m--- a/apps/api/drizzle.config.ts[m
+[1m+++ b/apps/api/drizzle.config.ts[m
+[36m@@ -1,13 +1,7 @@[m
+ import type { Config } from 'drizzle-kit'[m
+[31m-import * as dotenv from 'dotenv'[m
+[31m-dotenv.config()[m
+ [m
+ export default {[m
+[31m-  schema: "./src/db/schema.ts",[m
+[31m-  out: "./drizzle/migrations",[m
+[31m-  driver: "turso",[m
+[31m-  dbCredentials: {[m
+[31m-    url: process.env.TURSO_DATABASE_URL!,[m
+[31m-    authToken: process.env.TURSO_AUTH_TOKEN[m
+[31m-  }[m
+[32m+[m[32m  schema: './src/db/schema/*',[m
+[32m+[m[32m  out: './drizzle',[m
+[32m+[m[32m  driver: 'turso'[m
+ } satisfies Config[m
+[1mdiff --git a/apps/api/drizzle/meta/0000_snapshot.json b/apps/api/drizzle/meta/0000_snapshot.json[m
+[1mdeleted file mode 100644[m
+[1mindex a45dee7..0000000[m
+[1m--- a/apps/api/drizzle/meta/0000_snapshot.json[m
+[1m+++ /dev/null[m
+[36m@@ -1,74 +0,0 @@[m
+[31m-{[m
+[31m-  "version": "5",[m
+[31m-  "dialect": "sqlite",[m
+[31m-  "id": "00000000-0000-0000-0000-000000000000",[m
+[31m-  "prevId": "00000000-0000-0000-0000-000000000000",[m
+[31m-  "tables": {[m
+[31m-    "users": {[m
+[31m-      "name": "users",[m
+[31m-      "columns": {[m
+[31m-        "id": {[m
+[31m-          "name": "id",[m
+[31m-          "type": "text",[m
+[31m-          "primaryKey": true,[m
+[31m-          "notNull": true[m
+[31m-        },[m
+[31m-        "clerk_id": {[m
+[31m-          "name": "clerk_id",[m
+[31m-          "type": "text",[m
+[31m-          "unique": true[m
+[31m-        },[m
+[31m-        "email": {[m
+[31m-          "name": "email",[m
+[31m-          "type": "text",[m
+[31m-          "notNull": true[m
+[31m-        },[m
+[31m-        "first_name": {[m
+[31m-          "name": "first_name",[m
+[31m-          "type": "text",[m
+[31m-          "notNull": true[m
+[31m-        },[m
+[31m-        "last_name": {[m
+[31m-          "name": "last_name",[m
+[31m-          "type": "text",[m
+[31m-          "notNull": true[m
+[31m-        },[m
+[31m-        "phone_number": {[m
+[31m-          "name": "phone_number",[m
+[31m-          "type": "text"[m
+[31m-        },[m
+[31m-        "role": {[m
+[31m-          "name": "role",[m
+[31m-          "type": "text",[m
+[31m-          "notNull": true[m
+[31m-        },[m
+[31m-        "status": {[m
+[31m-          "name": "status",[m
+[31m-          "type": "text",[m
+[31m-          "notNull": true,[m
+[31m-          "default": "'invited'"[m
+[31m-        },[m
+[31m-        "created_at": {[m
+[31m-          "name": "created_at",[m
+[31m-          "type": "text",[m
+[31m-          "notNull": true[m
+[31m-        },[m
+[31m-        "updated_at": {[m
+[31m-          "name": "updated_at",[m
+[31m-          "type": "text",[m
+[31m-          "notNull": true[m
+[31m-        }[m
+[31m-      },[m
+[31m-      "indexes": {},[m
+[31m-      "foreignKeys": {},[m
+[31m-      "compositePrimaryKeys": {},[m
+[31m-      "uniqueConstraints": {}[m
+[31m-    }[m
+[31m-  },[m
+[31m-  "enums": {},[m
+[31m-  "_meta": {[m
+[31m-    "schemas": {},[m
+[31m-    "tables": {},[m
+[31m-    "columns": {}[m
+[31m-  }[m
+[31m-}[m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/drizzle/meta/0001_snapshot.json b/apps/api/drizzle/meta/0001_snapshot.json[m
+[1mdeleted file mode 100644[m
+[1mindex 5305f78..0000000[m
+[1m--- a/apps/api/drizzle/meta/0001_snapshot.json[m
+[1m+++ /dev/null[m
+[36m@@ -1,140 +0,0 @@[m
+[31m-{[m
+[31m-  "version": "5",[m
+[31m-  "dialect": "sqlite",[m
+[31m-  "id": "708e59b7-4367-4bac-9b0c-2a772d235694",[m
+[31m-  "prevId": "1ebfc2db-36d1-4417-87b2-73a8b4c083b3",[m
+[31m-  "tables": {[m
+[31m-    "migrations": {[m
+[31m-      "name": "migrations",[m
+[31m-      "columns": {[m
+[31m-        "id": {[m
+[31m-          "name": "id",[m
+[31m-          "type": "integer",[m
+[31m-          "primaryKey": true,[m
+[31m-          "notNull": true,[m
+[31m-          "autoincrement": true[m
+[31m-        },[m
+[31m-        "name": {[m
+[31m-          "name": "name",[m
+[31m-          "type": "text",[m
+[31m-          "primaryKey": false,[m
+[31m-          "notNull": true,[m
+[31m-          "autoincrement": false[m
+[31m-        },[m
+[31m-        "applied_at": {[m
+[31m-          "name": "applied_at",[m
+[31m-          "type": "text",[m
+[31m-          "primaryKey": false,[m
+[31m-          "notNull": true,[m
+[31m-          "autoincrement": false[m
+[31m-        }[m
+[31m-      },[m
+[31m-      "indexes": {[m
+[31m-        "migrations_name_unique": {[m
+[31m-          "name": "migrations_name_unique",[m
+[31m-          "columns": [[m
+[31m-            "name"[m
+[31m-          ],[m
+[31m-          "isUnique": true[m
+[31m-        }[m
+[31m-      },[m
+[31m-      "foreignKeys": {},[m
+[31m-      "compositePrimaryKeys": {},[m
+[31m-      "uniqueConstraints": {}[m
+[31m-    },[m
+[31m-    "users": {[m
+[31m-      "name": "users",[m
+[31m-      "columns": {[m
+[31m-        "id": {[m
+[31m-          "name": "id",[m
+[31m-          "type": "text",[m
+[31m-          "primaryKey": true,[m
+[31m-          "notNull": true,[m
+[31m-          "autoincrement": false[m
+[31m-        },[m
+[31m-        "clerk_id": {[m
+[31m-          "name": "clerk_id",[m
+[31m-          "type": "text",[m
+[31m-          "primaryKey": false,[m
+[31m-          "notNull": false,[m
+[31m-          "autoincrement": false[m
+[31m-        },[m
+[31m-        "email": {[m
+[31m-          "name": "email",[m
+[31m-          "type": "text",[m
+[31m-          "primaryKey": false,[m
+[31m-          "notNull": true,[m
+[31m-          "autoincrement": false[m
+[31m-        },[m
+[31m-        "first_name": {[m
+[31m-          "name": "first_name",[m
+[31m-          "type": "text",[m
+[31m-          "primaryKey": false,[m
+[31m-          "notNull": true,[m
+[31m-          "autoincrement": false[m
+[31m-        },[m
+[31m-        "last_name": {[m
+[31m-          "name": "last_name",[m
+[31m-          "type": "text",[m
+[31m-          "primaryKey": false,[m
+[31m-          "notNull": true,[m
+[31m-          "autoincrement": false[m
+[31m-        },[m
+[31m-        "role": {[m
+[31m-          "name": "role",[m
+[31m-          "type": "text",[m
+[31m-          "primaryKey": false,[m
+[31m-          "notNull": true,[m
+[31m-          "autoincrement": false[m
+[31m-        },[m
+[31m-        "status": {[m
+[31m-          "name": "status",[m
+[31m-          "type": "text",[m
+[31m-          "primaryKey": false,[m
+[31m-          "notNull": true,[m
+[31m-          "autoincrement": false,[m
+[31m-          "default": "'invited'"[m
+[31m-        },[m
+[31m-        "phone_number": {[m
+[31m-          "name": "phone_number",[m
+[31m-          "type": "text",[m
+[31m-          "primaryKey": false,[m
+[31m-          "notNull": false,[m
+[31m-          "autoincrement": false[m
+[31m-        },[m
+[31m-        "created_at": {[m
+[31m-          "name": "created_at",[m
+[31m-          "type": "text",[m
+[31m-          "primaryKey": false,[m
+[31m-          "notNull": true,[m
+[31m-          "autoincrement": false[m
+[31m-        },[m
+[31m-        "updated_at": {[m
+[31m-          "name": "updated_at",[m
+[31m-          "type": "text",[m
+[31m-          "primaryKey": false,[m
+[31m-          "notNull": true,[m
+[31m-          "autoincrement": false[m
+[31m-        }[m
+[31m-      },[m
+[31m-      "indexes": {[m
+[31m-        "users_clerk_id_unique": {[m
+[31m-          "name": "users_clerk_id_unique",[m
+[31m-          "columns": [[m
+[31m-            "clerk_id"[m
+[31m-          ],[m
+[31m-          "isUnique": true[m
+[31m-        }[m
+[31m-      },[m
+[31m-      "foreignKeys": {},[m
+[31m-      "compositePrimaryKeys": {},[m
+[31m-      "uniqueConstraints": {}[m
+[31m-    }[m
+[31m-  },[m
+[31m-  "enums": {},[m
+[31m-  "_meta": {[m
+[31m-    "schemas": {},[m
+[31m-    "tables": {},[m
+[31m-    "columns": {}[m
+[31m-  }[m
+[31m-}[m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/drizzle/meta/_journal.json b/apps/api/drizzle/meta/_journal.json[m
+[1mdeleted file mode 100644[m
+[1mindex 3972bd1..0000000[m
+[1m--- a/apps/api/drizzle/meta/_journal.json[m
+[1m+++ /dev/null[m
+[36m@@ -1,20 +0,0 @@[m
+[31m-{[m
+[31m-  "version": "5",[m
+[31m-  "dialect": "sqlite",[m
+[31m-  "entries": [[m
+[31m-    {[m
+[31m-      "idx": 0,[m
+[31m-      "version": "5",[m
+[31m-      "when": 1735842325099,[m
+[31m-      "tag": "0000_medical_wraith",[m
+[31m-      "breakpoints": true[m
+[31m-    },[m
+[31m-    {[m
+[31m-      "idx": 1,[m
+[31m-      "version": "5",[m
+[31m-      "when": 1735855301121,[m
+[31m-      "tag": "0001_flashy_angel",[m
+[31m-      "breakpoints": true[m
+[31m-    }[m
+[31m-  ][m
+[31m-}[m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/drizzle/migrations/meta/_journal.json b/apps/api/drizzle/migrations/meta/_journal.json[m
+[1mindex e158b44..9218098 100644[m
+[1m--- a/apps/api/drizzle/migrations/meta/_journal.json[m
+[1m+++ b/apps/api/drizzle/migrations/meta/_journal.json[m
+[36m@@ -8,6 +8,41 @@[m
+       "when": 1735937423353,[m
+       "tag": "0000_massive_enchantress",[m
+       "breakpoints": true[m
+[32m+[m[32m    },[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "idx": 1,[m
+[32m+[m[32m      "version": "5",[m
+[32m+[m[32m      "when": 1736356333278,[m
+[32m+[m[32m      "tag": "0001_gray_morgan_stark",[m
+[32m+[m[32m      "breakpoints": true[m
+[32m+[m[32m    },[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "idx": 2,[m
+[32m+[m[32m      "version": "5",[m
+[32m+[m[32m      "when": 1736356401556,[m
+[32m+[m[32m      "tag": "0002_useful_proudstar",[m
+[32m+[m[32m      "breakpoints": true[m
+[32m+[m[32m    },[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "idx": 3,[m
+[32m+[m[32m      "version": "5",[m
+[32m+[m[32m      "when": 1736356565993,[m
+[32m+[m[32m      "tag": "0003_dashing_black_queen",[m
+[32m+[m[32m      "breakpoints": true[m
+[32m+[m[32m    },[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "idx": 4,[m
+[32m+[m[32m      "version": "5",[m
+[32m+[m[32m      "when": 1736361797914,[m
+[32m+[m[32m      "tag": "0004_nebulous_the_hand",[m
+[32m+[m[32m      "breakpoints": true[m
+[32m+[m[32m    },[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "idx": 5,[m
+[32m+[m[32m      "version": "5",[m
+[32m+[m[32m      "when": 1736444808745,[m
+[32m+[m[32m      "tag": "0005_lean_rockslide",[m
+[32m+[m[32m      "breakpoints": true[m
+     }[m
+   ][m
+ }[m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/migrate-data.sh b/apps/api/migrate-data.sh[m
+[1mdeleted file mode 100644[m
+[1mindex 370280b..0000000[m
+[1m--- a/apps/api/migrate-data.sh[m
+[1m+++ /dev/null[m
+[36m@@ -1,7 +0,0 @@[m
+[31m-#!/bin/bash[m
+[31m-[m
+[31m-# Delete existing data from both tables[m
+[31m-echo "DELETE FROM users; DELETE FROM d1_migrations;" | turso db shell libsql://edgestack-elevraben.aws-us-east-1.turso.io[m
+[31m-[m
+[31m-# Extract and import only INSERT statements, excluding sqlite_sequence[m
+[31m-grep "^INSERT" d1-data.sql | grep -v "sqlite_sequence" | turso db shell libsql://edgestack-elevraben.aws-us-east-1.turso.io [m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/package.json b/apps/api/package.json[m
+[1mindex 1381694..180c0d8 100644[m
+[1m--- a/apps/api/package.json[m
+[1m+++ b/apps/api/package.json[m
+[36m@@ -5,30 +5,30 @@[m
+   "main": "dist/index.js",[m
+   "types": "dist/index.d.ts",[m
+   "scripts": {[m
+[31m-    "dev": "wrangler dev src/index.ts --env development --local",[m
+[31m-    "deploy": "wrangler deploy src/index.ts",[m
+[32m+[m[32m    "dev": "wrangler dev --env development --local",[m
+[32m+[m[32m    "deploy": "wrangler deploy",[m
+     "build": "tsc --project tsconfig.build.json",[m
+[31m-    "db:generate": "drizzle-kit generate:sqlite",[m
+[31m-    "db:migrate": "drizzle-kit push:sqlite",[m
+[31m-    "db:push": "wrangler d1 execute admin-db --local --file=./drizzle/0000_chilly_surge.sql",[m
+[31m-    "db:studio": "drizzle-kit studio"[m
+[32m+[m[32m    "db:generate": "drizzle-kit generate",[m
+[32m+[m[32m    "db:migrate": "drizzle-kit migrate",[m
+[32m+[m[32m    "db:studio": "drizzle-kit studio",[m
+[32m+[m[32m    "test": "vitest run",[m
+[32m+[m[32m    "test:watch": "vitest",[m
+[32m+[m[32m    "typecheck": "tsc --noEmit"[m
+   },[m
+   "dependencies": {[m
+     "@admin-cloudflare/api-types": "workspace:*",[m
+     "@clerk/backend": "^1.21.4",[m
+     "@clerk/clerk-sdk-node": "^5.1.4",[m
+     "@hono/clerk-auth": "^2.0.0",[m
+[32m+[m[32m    "@hono/swagger-ui": "0.2.1",[m
+     "@hono/zod-openapi": "^0.18.3",[m
+     "@hono/zod-validator": "^0.1.11",[m
+     "@libsql/client": "^0.14.0",[m
+[31m-    "dotenv": "^16.4.7",[m
+[31m-    "dotenv-expand": "^12.0.1",[m
+     "drizzle-orm": "^0.29.3",[m
+     "drizzle-zod": "^0.5.1",[m
+     "hono": "^4.6.15",[m
+     "hono-pino": "^0.7.0",[m
+     "pino": "^9.6.0",[m
+[31m-    "pino-pretty": "^13.0.0",[m
+     "svix": "^1.45.1",[m
+     "uuid": "^9.0.1",[m
+     "web": "link:@libsql/client/web",[m
+[36m@@ -37,9 +37,10 @@[m
+   "devDependencies": {[m
+     "@cloudflare/workers-types": "^4.20231218.0",[m
+     "@types/uuid": "^9.0.7",[m
+[31m-    "drizzle-kit": "^0.20.9",[m
+[32m+[m[32m    "drizzle-kit": "^0.20.18",[m
+[32m+[m[32m    "pino-pretty": "^13.0.0",[m
+     "tsx": "^4.19.2",[m
+     "typescript": "^5.0.0",[m
+[31m-    "wrangler": "^3.99.0"[m
+[32m+[m[32m    "wrangler": "^3.100.0"[m
+   }[m
+ }[m
+[1mdiff --git a/apps/api/src/.env.example b/apps/api/src/.env.example[m
+[1mdeleted file mode 100644[m
+[1mindex 5254925..0000000[m
+[1m--- a/apps/api/src/.env.example[m
+[1m+++ /dev/null[m
+[36m@@ -1,12 +0,0 @@[m
+[31m-# Environment[m
+[31m-NODE_ENV=development[m
+[31m-LOG_LEVEL=debug[m
+[31m-API_VERSION=1.0.0[m
+[31m-[m
+[31m-# Database[m
+[31m-DATABASE_URL=[m
+[31m-DATABASE_AUTH_TOKEN=[m
+[31m-[m
+[31m-# Authentication[m
+[31m-CLERK_PUBLISHABLE_KEY=[m
+[31m-CLERK_SECRET_KEY= [m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/src/db/config.ts b/apps/api/src/db/config.ts[m
+[1mindex e0ebdb5..b11f234 100644[m
+[1m--- a/apps/api/src/db/config.ts[m
+[1m+++ b/apps/api/src/db/config.ts[m
+[36m@@ -1,16 +1,49 @@[m
+ import { createClient } from '@libsql/client'[m
+[31m-import { drizzle } from 'drizzle-orm/libsql'[m
+[31m-import * as schema from './schema'[m
+[31m-import type { RuntimeEnv } from '../env'[m
+[32m+[m[32mimport type { Client } from '@libsql/client'[m
+[32m+[m[32mimport type { HonoContext } from '../types'[m
+ [m
+[31m-export function getDatabaseClient(env: RuntimeEnv) {[m
+[31m-  const client = createClient({[m
+[31m-    url: env.TURSO_DATABASE_URL,[m
+[31m-    authToken: env.TURSO_AUTH_TOKEN,[m
+[31m-  })[m
+[32m+[m[32mexport async function createDatabase(context: HonoContext): Promise<Client> {[m
+[32m+[m[32m  if (!context.env.TURSO_DATABASE_URL) {[m
+[32m+[m[32m    throw new Error('TURSO_DATABASE_URL is required')[m
+[32m+[m[32m  }[m
+[32m+[m[32m  if (!context.env.TURSO_AUTH_TOKEN) {[m
+[32m+[m[32m    throw new Error('TURSO_AUTH_TOKEN is required')[m
+[32m+[m[32m  }[m
+ [m
+[31m-  return drizzle(client, { schema })[m
+[31m-}[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    // Try libSQL protocol first[m
+[32m+[m[32m    const libsqlUrl = context.env.TURSO_DATABASE_URL[m
+[32m+[m[32m    console.log('Trying libSQL connection:', {[m
+[32m+[m[32m      url: libsqlUrl.split('://')[0] + '://' + libsqlUrl.split('://')[1]?.split('.')[0] + '...'[m
+[32m+[m[32m    })[m
+[32m+[m[41m    [m
+[32m+[m[32m    try {[m
+[32m+[m[32m      const libsqlClient = createClient({[m[41m [m
+[32m+[m[32m        url: libsqlUrl,[m
+[32m+[m[32m        authToken: context.env.TURSO_AUTH_TOKEN[m
+[32m+[m[32m      })[m
+[32m+[m[32m      await libsqlClient.execute('SELECT 1')[m
+[32m+[m[32m      console.log('libSQL connection successful')[m
+[32m+[m[32m      return libsqlClient[m
+[32m+[m[32m    } catch (libsqlError) {[m
+[32m+[m[32m      console.log('libSQL connection failed:', libsqlError)[m
+ [m
+[31m-// Export database type[m
+[31m-export type Database = ReturnType<typeof getDatabaseClient> [m
+\ No newline at end of file[m
+[32m+[m[32m      // Try HTTP protocol[m
+[32m+[m[32m      const httpUrl = libsqlUrl.replace('libsql://', 'https://')[m
+[32m+[m[32m      console.log('Trying HTTP connection:', {[m
+[32m+[m[32m        url: httpUrl.split('://')[0] + '://' + httpUrl.split('://')[1]?.split('.')[0] + '...'[m
+[32m+[m[32m      })[m
+[32m+[m
+[32m+[m[32m      const httpClient = createClient({[m[41m [m
+[32m+[m[32m        url: httpUrl,[m
+[32m+[m[32m        authToken: context.env.TURSO_AUTH_TOKEN[m
+[32m+[m[32m      })[m
+[32m+[m[32m      await httpClient.execute('SELECT 1')[m
+[32m+[m[32m      console.log('HTTP connection successful')[m
+[32m+[m[32m      return httpClient[m
+[32m+[m[32m    }[m
+[32m+[m[32m  } catch (error) {[m
+[32m+[m[32m    console.error('Failed to create database client:', error)[m
+[32m+[m[32m    throw error[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m[41m [m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/src/db/index.ts b/apps/api/src/db/index.ts[m
+[1mindex c6b191d..298abdf 100644[m
+[1m--- a/apps/api/src/db/index.ts[m
+[1m+++ b/apps/api/src/db/index.ts[m
+[36m@@ -1,13 +1,2 @@[m
+[31m-import type { Hono } from 'hono'[m
+[31m-import type { RuntimeEnv } from '../env'[m
+[31m-[m
+[31m-// Re-export database type[m
+[31m-export type { Database } from './config'[m
+[31m-[m
+[31m-// Export context type with updated database[m
+[31m-export type AppContext = {[m
+[31m-  Bindings: RuntimeEnv[m
+[31m-  Variables: {[m
+[31m-    userId: string[m
+[31m-  }[m
+[31m-}[m
+[32m+[m[32mexport * from './services'[m
+[32m+[m[32mexport * from './config'[m
+[1mdiff --git a/apps/api/src/db/migrations/index.ts b/apps/api/src/db/migrations/index.ts[m
+[1mindex 6bd0438..4889ac3 100644[m
+[1m--- a/apps/api/src/db/migrations/index.ts[m
+[1m+++ b/apps/api/src/db/migrations/index.ts[m
+[36m@@ -1,43 +1,47 @@[m
+[32m+[m[32mimport { LibSQLDatabase } from 'drizzle-orm/libsql'[m
+[32m+[m[32mimport { sql } from 'drizzle-orm'[m
+ import * as createUsers from './0001_create_users'[m
+[32m+[m[32mimport * as createOrganizations from './0002_organizations'[m
+ [m
+ // List of migrations in order[m
+ const migrations = [[m
+   createUsers,[m
+[32m+[m[32m  createOrganizations,[m
+ ] as const[m
+ [m
+ // Migration metadata table[m
+ const MIGRATION_TABLE = 'migrations'[m
+ [m
+ // Initialize migrations table[m
+[31m-async function initMigrationTable(db: D1Database) {[m
+[31m-  await db.prepare(`[m
+[32m+[m[32masync function initMigrationTable(db: LibSQLDatabase) {[m
+[32m+[m[32m  await db.run(sql`[m
+     CREATE TABLE IF NOT EXISTS ${MIGRATION_TABLE} ([m
+       id INTEGER PRIMARY KEY AUTOINCREMENT,[m
+       name TEXT NOT NULL UNIQUE,[m
+       applied_at TEXT NOT NULL[m
+     )[m
+[31m-  `).run()[m
+[32m+[m[32m  `)[m
+ }[m
+ [m
+ // Get applied migrations[m
+[31m-async function getAppliedMigrations(db: D1Database): Promise<string[]> {[m
+[31m-  const result = await db.prepare(`[m
+[31m-    SELECT name FROM ${MIGRATION_TABLE} ORDER BY id ASC[m
+[31m-  `).all<{ name: string }>()[m
+[32m+[m[32masync function getAppliedMigrations(db: LibSQLDatabase): Promise<string[]> {[m
+[32m+[m[32m  const result = await db.select({ name: sql<string>`name` })[m
+[32m+[m[32m    .from(sql.raw(MIGRATION_TABLE))[m
+[32m+[m[32m    .orderBy(sql`id ASC`)[m
+   [m
+[31m-  return result.results?.map(row => row.name) || [][m
+[32m+[m[32m  return result.map(row => row.name)[m
+ }[m
+ [m
+ // Apply a single migration[m
+[31m-async function applyMigration(db: D1Database, migration: typeof migrations[number], name: string) {[m
+[32m+[m[32masync function applyMigration(db: LibSQLDatabase, migration: typeof migrations[number], name: string) {[m
+   console.log(`Applying migration: ${name}`)[m
+   [m
+   try {[m
+     await migration.up(db)[m
+[31m-    await db.prepare(`[m
+[32m+[m[32m    await db.run(sql`[m
+       INSERT INTO ${MIGRATION_TABLE} (name, applied_at)[m
+[31m-      VALUES (?, ?)[m
+[31m-    `).bind(name, new Date().toISOString()).run()[m
+[32m+[m[32m      VALUES (${name}, ${new Date().toISOString()})[m
+[32m+[m[32m    `)[m
+     [m
+     console.log(`Successfully applied migration: ${name}`)[m
+   } catch (error) {[m
+[36m@@ -47,15 +51,15 @@[m [masync function applyMigration(db: D1Database, migration: typeof migrations[numbe[m
+ }[m
+ [m
+ // Revert a single migration[m
+[31m-async function revertMigration(db: D1Database, migration: typeof migrations[number], name: string) {[m
+[32m+[m[32masync function revertMigration(db: LibSQLDatabase, migration: typeof migrations[number], name: string) {[m
+   console.log(`Reverting migration: ${name}`)[m
+   [m
+   try {[m
+     await migration.down(db)[m
+[31m-    await db.prepare(`[m
+[32m+[m[32m    await db.run(sql`[m
+       DELETE FROM ${MIGRATION_TABLE}[m
+[31m-      WHERE name = ?[m
+[31m-    `).bind(name).run()[m
+[32m+[m[32m      WHERE name = ${name}[m
+[32m+[m[32m    `)[m
+     [m
+     console.log(`Successfully reverted migration: ${name}`)[m
+   } catch (error) {[m
+[36m@@ -65,7 +69,7 @@[m [masync function revertMigration(db: D1Database, migration: typeof migrations[numb[m
+ }[m
+ [m
+ // Run all pending migrations[m
+[31m-export async function migrate(db: D1Database) {[m
+[32m+[m[32mexport async function migrate(db: LibSQLDatabase) {[m
+   console.log('Starting migrations...')[m
+   [m
+   // Initialize migrations table[m
+[36m@@ -88,7 +92,7 @@[m [mexport async function migrate(db: D1Database) {[m
+ }[m
+ [m
+ // Revert all migrations[m
+[31m-export async function revertAll(db: D1Database) {[m
+[32m+[m[32mexport async function revertAll(db: LibSQLDatabase) {[m
+   console.log('Reverting all migrations...')[m
+   [m
+   // Get applied migrations[m
+[1mdiff --git a/apps/api/src/db/schema.ts b/apps/api/src/db/schema.ts[m
+[1mdeleted file mode 100644[m
+[1mindex bce4fb5..0000000[m
+[1m--- a/apps/api/src/db/schema.ts[m
+[1m+++ /dev/null[m
+[36m@@ -1,65 +0,0 @@[m
+[31m-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'[m
+[31m-import { sql } from 'drizzle-orm'[m
+[31m-import { createInsertSchema, createSelectSchema } from 'drizzle-zod'[m
+[31m-import { z } from 'zod'[m
+[31m-import { getCurrentTimestamp } from './utils'[m
+[31m-[m
+[31m-// Define user roles and status as string literals[m
+[31m-export const UserRole = {[m
+[31m-  SUPERADMIN: 'superadmin',[m
+[31m-  ADMIN: 'admin',[m
+[31m-  MANAGER: 'manager',[m
+[31m-  CASHIER: 'cashier',[m
+[31m-} as const[m
+[31m-[m
+[31m-export type UserRoleType = typeof UserRole[keyof typeof UserRole][m
+[31m-[m
+[31m-export const UserStatus = {[m
+[31m-  ACTIVE: 'active',[m
+[31m-  INACTIVE: 'inactive',[m
+[31m-  INVITED: 'invited',[m
+[31m-  SUSPENDED: 'suspended',[m
+[31m-} as const[m
+[31m-[m
+[31m-export type UserStatusType = typeof UserStatus[keyof typeof UserStatus][m
+[31m-[m
+[31m-// Create the users table[m
+[31m-export const users = sqliteTable('users', {[m
+[31m-  id: text('id').primaryKey(),[m
+[31m-  clerkId: text('clerk_id').unique(),[m
+[31m-  email: text('email').notNull(),[m
+[31m-  firstName: text('first_name').notNull(),[m
+[31m-  lastName: text('last_name').notNull(),[m
+[31m-  role: text('role', { enum: ['superadmin', 'admin', 'manager', 'cashier'] }).notNull().default('cashier'),[m
+[31m-  status: text('status', { enum: ['active', 'inactive', 'invited', 'suspended'] }).notNull().default('active'),[m
+[31m-  syncStatus: text('sync_status', { enum: ['synced', 'pending', 'failed'] }).notNull().default('pending'),[m
+[31m-  lastSyncAttempt: text('last_sync_attempt'),[m
+[31m-  syncError: text('sync_error'),[m
+[31m-  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),[m
+[31m-  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),[m
+[31m-})[m
+[31m-[m
+[31m-// Migrations table[m
+[31m-export const migrations = sqliteTable('migrations', {[m
+[31m-  id: integer('id').primaryKey({ autoIncrement: true }),[m
+[31m-  name: text('name').notNull().unique(),[m
+[31m-  appliedAt: text('applied_at').notNull(),[m
+[31m-})[m
+[31m-[m
+[31m-// Create Zod schemas for validation[m
+[31m-export const insertUserSchema = createInsertSchema(users, {[m
+[31m-  email: z.string().email(),[m
+[31m-  firstName: z.string().min(2),[m
+[31m-  lastName: z.string().min(2),[m
+[31m-  role: z.enum(['superadmin', 'admin', 'manager', 'cashier'] as const),[m
+[31m-  status: z.enum(['active', 'inactive', 'invited', 'suspended'] as const),[m
+[31m-})[m
+[31m-[m
+[31m-export const selectUserSchema = createSelectSchema(users)[m
+[31m-[m
+[31m-export const updateUserSchema = insertUserSchema.partial()[m
+[31m-[m
+[31m-// Types[m
+[31m-export type User = typeof users.$inferSelect[m
+[31m-export type NewUser = typeof users.$inferInsert[m
+[31m-export type Migration = typeof migrations.$inferSelect[m
+[1mdiff --git a/apps/api/src/db/seed.ts b/apps/api/src/db/seed.ts[m
+[1mdeleted file mode 100644[m
+[1mindex 0519ecb..0000000[m
+[1m--- a/apps/api/src/db/seed.ts[m
+[1m+++ /dev/null[m
+[36m@@ -1 +0,0 @@[m
+[31m- [m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/src/db/utils.ts b/apps/api/src/db/utils.ts[m
+[1mindex 4d15491..d982846 100644[m
+[1m--- a/apps/api/src/db/utils.ts[m
+[1m+++ b/apps/api/src/db/utils.ts[m
+[36m@@ -1,6 +1,6 @@[m
+ import { eq, and, desc, asc, sql, type SQL } from 'drizzle-orm'[m
+ import type { Context } from 'hono'[m
+[31m-import type { AppContext } from '.'[m
+[32m+[m[32mimport type { AppContext } from '../types'[m
+ import type { SQLiteTableWithColumns } from 'drizzle-orm/sqlite-core'[m
+ [m
+ // Pagination types[m
+[36m@@ -114,8 +114,5 @@[m [mexport function getCurrentTimestamp(): string {[m
+ [m
+ // Helper to get database instance from context[m
+ export function getDBFromContext(c: Context<AppContext>) {[m
+[31m-  if (!c.env.db) {[m
+[31m-    throw new Error('Turso database instance not found')[m
+[31m-  }[m
+   return c.env.db[m
+ } [m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/src/env.ts b/apps/api/src/env.ts[m
+[1mindex d17ba34..e29cbeb 100644[m
+[1m--- a/apps/api/src/env.ts[m
+[1m+++ b/apps/api/src/env.ts[m
+[36m@@ -1,17 +1,52 @@[m
+[31m-import type { LibSQLDatabase } from 'drizzle-orm/libsql'[m
+[31m-import type { User } from '@clerk/backend'[m
+[31m-import type { MiddlewareHandler } from 'hono'[m
+[31m-import * as schema from './db/schema'[m
+[32m+[m[32mimport { z } from 'zod'[m
+[32m+[m[32mimport type { Bindings } from './types'[m
+[32m+[m[32mimport type { Logger } from './lib/logger'[m
+[32m+[m[32mimport type { Client } from '@libsql/client'[m
+ [m
+[31m-export interface RuntimeEnv {[m
+[31m-  ENVIRONMENT: string[m
+[31m-  CLERK_PUBLISHABLE_KEY: string[m
+[31m-  CLERK_SECRET_KEY: string[m
+[31m-  TURSO_DATABASE_URL: string[m
+[31m-  TURSO_AUTH_TOKEN: string[m
+[31m-  WEBHOOK_SECRET: string[m
+[31m-  CLERK_WEBHOOK_SECRET: string[m
+[31m-  db: LibSQLDatabase<typeof schema>[m
+[31m-  logger: MiddlewareHandler[m
+[31m-  clerk: { users: { getUser: (id: string) => Promise<User> } }[m
+[32m+[m[32mconst envSchema = z.object({[m
+[32m+[m[32m  // Database[m
+[32m+[m[32m  TURSO_DATABASE_URL: z.string(),[m
+[32m+[m[32m  TURSO_AUTH_TOKEN: z.string(),[m
+[32m+[m[32m  TURSO_ORG_GROUP: z.string(),[m
+[32m+[m[32m  TURSO_ORG_TOKEN: z.string(),[m
+[32m+[m
+[32m+[m[32m  // Clerk[m
+[32m+[m[32m  CLERK_SECRET_KEY: z.string(),[m
+[32m+[m[32m  CLERK_WEBHOOK_SECRET: z.string(),[m
+[32m+[m
+[32m+[m[32m  // Cloudflare (only required in production)[m
+[32m+[m[32m  CLOUDFLARE_API_TOKEN: z.string().optional(),[m
+[32m+[m[32m  CLOUDFLARE_ACCOUNT_ID: z.string().optional(),[m
+[32m+[m
+[32m+[m[32m  // Misc[m
+[32m+[m[32m  ENVIRONMENT: z.enum(['development', 'production', 'test']).default('development'),[m
+[32m+[m[32m}).transform(env => {[m
+[32m+[m[32m  // In production, ensure Cloudflare credentials are present[m
+[32m+[m[32m  if (env.ENVIRONMENT === 'production') {[m
+[32m+[m[32m    if (!env.CLOUDFLARE_API_TOKEN || !env.CLOUDFLARE_ACCOUNT_ID) {[m
+[32m+[m[32m      throw new Error('Cloudflare credentials are required in production')[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }[m
+[32m+[m[32m  return env[m
+[32m+[m[32m})[m
+[32m+[m
+[32m+[m[32mexport type EnvSchema = z.infer<typeof envSchema>[m
+[32m+[m[32mexport type RuntimeEnv = EnvSchema & { db: Client, logger: Logger }[m
+[32m+[m
+[32m+[m[32mexport function loadEnv(env: Record<string, string | undefined>): EnvSchema {[m
+[32m+[m[32m  const result = envSchema.safeParse(env)[m
+[32m+[m[32m  if (!result.success) {[m
+[32m+[m[32m    const formatted = JSON.stringify(result.error.format(), null, 4)[m
+[32m+[m[32m    throw new Error(`Invalid environment variables: ${formatted}`)[m
+[32m+[m[32m  }[m
+[32m+[m[41m  [m
+[32m+[m[32m  return result.data[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m// Helper to create full environment with runtime bindings[m
+[32m+[m[32mexport function createEnv(env: EnvSchema, runtime: { db: Client, logger: Logger }): Bindings {[m
+[32m+[m[32m  return {[m
+[32m+[m[32m    ...env,[m
+[32m+[m[32m    ...runtime[m
+[32m+[m[32m  }[m
+ } [m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/src/index.ts b/apps/api/src/index.ts[m
+[1mindex 594034b..a0646d4 100644[m
+[1m--- a/apps/api/src/index.ts[m
+[1m+++ b/apps/api/src/index.ts[m
+[36m@@ -1,36 +1,125 @@[m
+ import { Hono } from 'hono'[m
+ import { cors } from 'hono/cors'[m
+[31m-import { logger } from 'hono-pino'[m
+[31m-import { clerkMiddleware } from '@hono/clerk-auth'[m
+[32m+[m[32mimport { prettyJSON } from 'hono/pretty-json'[m
+[32m+[m[32mimport { secureHeaders } from 'hono/secure-headers'[m
+[32m+[m[32mimport { swaggerUI } from '@hono/swagger-ui/dist'[m
+[32m+[m[32mimport webhooksRouter from './routes/webhooks/clerk'[m
+[32m+[m[32mimport organizationsRouter from './routes/organizations'[m
+ import { errorHandler } from './middleware/error'[m
+[31m-import { authMiddleware } from './middleware/auth'[m
+[31m-import usersRouter from './routes/users'[m
+[31m-import testRouter from './routes/test'[m
+[31m-import webhooks from './routes/webhooks/clerk'[m
+[31m-import type { AppContext } from './db'[m
+[31m-import { getDatabaseClient } from './db/config'[m
+[32m+[m[32mimport type { AppBindings, Variables } from './types'[m
+[32m+[m[32mimport pino from 'pino'[m
+[32m+[m[32mimport { loadEnv, createEnv } from './env'[m
+[32m+[m[32mimport { createDatabase } from './db/config'[m
+[32m+[m[32mimport { OpenAPIHono } from '@hono/zod-openapi'[m
+ [m
+[31m-const app = new Hono<AppContext>()[m
+[32m+[m[32m// Create app with proper typing[m
+[32m+[m[32mconst app = new OpenAPIHono<{ Bindings: AppBindings; Variables: Variables }>()[m
+ [m
+[31m-// Add middleware (order is important)[m
+[32m+[m[32m// Global middleware[m
+[32m+[m[32mapp.use('*', prettyJSON())[m
+[32m+[m[32mapp.use('*', secureHeaders())[m
+ app.use('*', cors())[m
+[31m-app.use('*', logger())[m
+[31m-app.use('*', async (c, next) => {[m
+[31m-  // Initialize database[m
+[31m-  c.env.db = getDatabaseClient(c.env)[m
+[31m-  await next()[m
+[32m+[m[32mapp.use('*', errorHandler)[m
+[32m+[m
+[32m+[m[32m// OpenAPI documentation[m
+[32m+[m[32mapp.doc('/api/docs', {[m
+[32m+[m[32m  openapi: '3.0.0',[m
+[32m+[m[32m  info: {[m
+[32m+[m[32m    title: 'Admin API',[m
+[32m+[m[32m    version: '1.0.0',[m
+[32m+[m[32m    description: 'API for managing organizations, users, and webhooks'[m
+[32m+[m[32m  },[m
+[32m+[m[32m  servers: [[m
+[32m+[m[32m    {[m
+[32m+[m[32m      url: '/api',[m
+[32m+[m[32m      description: 'API server'[m
+[32m+[m[32m    }[m
+[32m+[m[32m  ][m
+ })[m
+ [m
+[31m-// Mount webhook routes before auth middleware[m
+[31m-app.route('/api/webhooks/clerk', webhooks)[m
+[32m+[m[32m// Serve Swagger UI[m
+[32m+[m[32mapp.get('/api/swagger', swaggerUI({ url: '/api/docs' }))[m
+ [m
+[31m-// Add auth middleware[m
+[31m-app.use('*', clerkMiddleware())[m
+[31m-app.use('*', authMiddleware)[m
+[31m-app.use('*', errorHandler)[m
+[32m+[m[32m// Initialize environment and database[m
+[32m+[m[32mapp.use('*', async (c, next) => {[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    // Load environment variables from bindings[m
+[32m+[m[32m    const envVars: Record<string, string | undefined> = {[m
+[32m+[m[32m      TURSO_DATABASE_URL: c.env.TURSO_DATABASE_URL,[m
+[32m+[m[32m      TURSO_AUTH_TOKEN: c.env.TURSO_AUTH_TOKEN,[m
+[32m+[m[32m      TURSO_ORG_GROUP: c.env.TURSO_ORG_GROUP,[m
+[32m+[m[32m      TURSO_ORG_TOKEN: c.env.TURSO_ORG_TOKEN,[m
+[32m+[m[32m      CLERK_SECRET_KEY: c.env.CLERK_SECRET_KEY,[m
+[32m+[m[32m      CLERK_WEBHOOK_SECRET: c.env.CLERK_WEBHOOK_SECRET,[m
+[32m+[m[32m      CLOUDFLARE_API_TOKEN: c.env.CLOUDFLARE_API_TOKEN,[m
+[32m+[m[32m      CLOUDFLARE_ACCOUNT_ID: c.env.CLOUDFLARE_ACCOUNT_ID,[m
+[32m+[m[32m      ENVIRONMENT: c.env.ENVIRONMENT[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    console.log('Environment variables loaded:', {[m
+[32m+[m[32m      TURSO_DATABASE_URL: envVars.TURSO_DATABASE_URL?.substring(0, 20) + '...',[m
+[32m+[m[32m      TURSO_AUTH_TOKEN: envVars.TURSO_AUTH_TOKEN?.substring(0, 5) + '...',[m
+[32m+[m[32m      TURSO_ORG_GROUP: envVars.TURSO_ORG_GROUP,[m
+[32m+[m[32m      TURSO_ORG_TOKEN: envVars.TURSO_ORG_TOKEN?.substring(0, 5) + '...'[m
+[32m+[m[32m    })[m
+[32m+[m
+[32m+[m[32m    const envSchema = loadEnv(envVars)[m
+[32m+[m[41m    [m
+[32m+[m[32m    // Configure logger[m
+[32m+[m[32m    const pinoLogger = pino({[m
+[32m+[m[32m      level: envSchema.ENVIRONMENT === 'development' ? 'debug' : 'info',[m
+[32m+[m[32m      transport: {[m
+[32m+[m[32m        target: 'pino-pretty'[m
+[32m+[m[32m      }[m
+[32m+[m[32m    })[m
+ [m
+[31m-// Mount authenticated routes[m
+[31m-app.route('/api/users', usersRouter)[m
+[31m-app.route('/api/test', testRouter)[m
+[32m+[m[32m    // Set environment first[m
+[32m+[m[32m    const env: AppBindings = {[m
+[32m+[m[32m      ...envSchema,[m
+[32m+[m[32m      db: undefined!,[m
+[32m+[m[32m      logger: pinoLogger[m
+[32m+[m[32m    }[m
+[32m+[m[32m    c.env = env[m
+[32m+[m
+[32m+[m[32m    // Then create database with updated context[m
+[32m+[m[32m    console.log('Creating database connection with:', {[m
+[32m+[m[32m      url: c.env.TURSO_DATABASE_URL?.substring(0, 20) + '...',[m
+[32m+[m[32m      hasAuthToken: !!c.env.TURSO_AUTH_TOKEN[m
+[32m+[m[32m    })[m
+[32m+[m[32m    const db = await createDatabase(c)[m
+[32m+[m[32m    c.env.db = db[m
+[32m+[m[32m    console.log('Database connection created')[m
+[32m+[m
+[32m+[m[32m    await next()[m
+[32m+[m[32m  } catch (error) {[m
+[32m+[m[32m    console.error('Failed to initialize environment:', error)[m
+[32m+[m[32m    throw error[m
+[32m+[m[32m  }[m
+[32m+[m[32m})[m
+[32m+[m
+[32m+[m[32m// Mount routes[m
+[32m+[m[32mapp.route('/api/organizations', organizationsRouter)[m
+[32m+[m[32mapp.route('/api/webhooks/clerk', webhooksRouter)[m
+[32m+[m
+[32m+[m[32m// Health check endpoint[m
+[32m+[m[32mapp.get('/api/health', async (c) => {[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    console.log('Testing database connection...')[m
+[32m+[m[32m    await c.env.db.execute('SELECT 1')[m
+[32m+[m[32m    console.log('Database query successful')[m
+[32m+[m[32m    return c.json({ status: 'healthy', database: 'connected' })[m
+[32m+[m[32m  } catch (error) {[m
+[32m+[m[32m    console.error('Database health check failed:', {[m
+[32m+[m[32m      error: error instanceof Error ? error.message : 'Unknown error',[m
+[32m+[m[32m      stack: error instanceof Error ? error.stack : undefined[m
+[32m+[m[32m    })[m
+[32m+[m[32m    c.status(500)[m
+[32m+[m[32m    return c.json({[m[41m [m
+[32m+[m[32m      status: 'unhealthy',[m[41m [m
+[32m+[m[32m      database: 'disconnected',[m
+[32m+[m[32m      error: error instanceof Error ? error.message : 'Unknown error'[m
+[32m+[m[32m    })[m
+[32m+[m[32m  }[m
+[32m+[m[32m})[m
+ [m
+ export default app[m
+[1mdiff --git a/apps/api/src/lib/clerk.ts b/apps/api/src/lib/clerk.ts[m
+[1mindex 2a15cfc..1db019c 100644[m
+[1m--- a/apps/api/src/lib/clerk.ts[m
+[1m+++ b/apps/api/src/lib/clerk.ts[m
+[36m@@ -1,135 +1,117 @@[m
+[31m-import type { User } from '../db/schema'[m
+[31m-import { eq } from 'drizzle-orm'[m
+[31m-import { users } from '../db/schema'[m
+[31m-import type { LibSQLDatabase } from 'drizzle-orm/libsql'[m
+[31m-import type { Context } from 'hono'[m
+[31m-import type { AppContext } from '../db'[m
+[31m-import type * as schema from '../db/schema'[m
+[32m+[m[32mimport type { User } from '../db/schema/users'[m
+[32m+[m[32mimport { generateId } from './utils'[m
+[32m+[m[32mimport { getCurrentTimestamp } from '../db/utils'[m
+[32m+[m[32mimport type { HonoContext } from '../types'[m
+[32m+[m[32mimport { createDatabase } from '../db/config'[m
+ [m
+[31m-interface CreateClerkUserParams {[m
+[31m-  email: string[m
+[31m-  firstName: string[m
+[31m-  lastName: string[m
+[31m-  password?: string[m
+[31m-}[m
+[31m-[m
+[31m-export async function createClerkUser(c: Context<AppContext>, params: CreateClerkUserParams) {[m
+[31m-  try {[m
+[31m-    const clerk = c.get('clerk')[m
+[31m-    const user = await clerk.users.createUser({[m
+[31m-      emailAddress: [params.email],[m
+[31m-      firstName: params.firstName,[m
+[31m-      lastName: params.lastName,[m
+[31m-      password: params.password,[m
+[31m-      skipPasswordRequirement: true,[m
+[31m-      skipPasswordChecks: true,[m
+[31m-    })[m
+[31m-    return user[m
+[31m-  } catch (error) {[m
+[31m-    console.error('Failed to create Clerk user:', error)[m
+[31m-    throw error[m
+[32m+[m[32mexport interface ClerkWebhookEvent {[m
+[32m+[m[32m  data: {[m
+[32m+[m[32m    id: string[m
+[32m+[m[32m    first_name?: string[m
+[32m+[m[32m    last_name?: string[m
+[32m+[m[32m    email_addresses?: Array<{[m
+[32m+[m[32m      email_address: string[m
+[32m+[m[32m      id: string[m
+[32m+[m[32m    }>[m
+[32m+[m[32m    created_at: number[m
+[32m+[m[32m    updated_at: number[m
+[32m+[m[32m    public_metadata?: Record<string, unknown>[m
+   }[m
+[32m+[m[32m  object: 'event'[m
+[32m+[m[32m  type: string[m
+ }[m
+ [m
+[31m-export async function listClerkUsers(c: Context<AppContext>) {[m
+[31m-  try {[m
+[31m-    const clerk = c.get('clerk')[m
+[31m-    const PAGE_SIZE = 10[m
+[31m-    let allUsers: Array<Awaited<ReturnType<typeof clerk.users.getUser>>> = [][m
+[31m-    let pageNumber = 0[m
+[31m-    let hasMore = true[m
+[31m-[m
+[31m-    console.log('Starting to fetch all Clerk users...')[m
+[31m-    [m
+[31m-    while (hasMore) {[m
+[31m-      console.log(`Fetching page ${pageNumber + 1} of Clerk users...`)[m
+[31m-      const response = await clerk.users.getUserList({[m
+[31m-        limit: PAGE_SIZE,[m
+[31m-        offset: pageNumber * PAGE_SIZE,[m
+[31m-      })[m
+[31m-      [m
+[31m-      if (response.data.length === 0) {[m
+[31m-        hasMore = false[m
+[31m-      } else {[m
+[31m-        allUsers = [...allUsers, ...response.data][m
+[31m-        pageNumber++[m
+[31m-        console.log(`Fetched ${response.data.length} users (total: ${allUsers.length})`)[m
+[31m-        [m
+[31m-        // If we got fewer users than the page size, we've reached the end[m
+[31m-        if (response.data.length < PAGE_SIZE) {[m
+[31m-          hasMore = false[m
+[31m-        }[m
+[31m-      }[m
+[31m-    }[m
+[31m-[m
+[31m-    console.log(`Completed fetching all Clerk users. Total: ${allUsers.length}`)[m
+[31m-    return { data: allUsers }[m
+[31m-  } catch (error) {[m
+[31m-    console.error('Failed to list Clerk users:', error)[m
+[31m-    throw error[m
+[32m+[m[32mfunction rowToUser(row: Record<string, any>): User {[m
+[32m+[m[32m  return {[m
+[32m+[m[32m    id: row.id,[m
+[32m+[m[32m    clerkId: row.clerk_id,[m
+[32m+[m[32m    email: row.email,[m
+[32m+[m[32m    firstName: row.first_name,[m
+[32m+[m[32m    lastName: row.last_name,[m
+[32m+[m[32m    imageUrl: row.image_url,[m
+[32m+[m[32m    role: row.role,[m
+[32m+[m[32m    status: row.status,[m
+[32m+[m[32m    syncStatus: row.sync_status,[m
+[32m+[m[32m    lastSyncAttempt: row.last_sync_attempt,[m
+[32m+[m[32m    syncError: row.sync_error,[m
+[32m+[m[32m    metadata: row.metadata,[m
+[32m+[m[32m    createdAt: row.created_at,[m
+[32m+[m[32m    updatedAt: row.updated_at[m
+   }[m
+ }[m
+ [m
+[31m-export async function syncUserToClerk([m
+[31m-  c: Context<AppContext>, [m
+[31m-  db: LibSQLDatabase<typeof schema>,[m
+[31m-  dbUser: User[m
+[31m-) {[m
+[31m-  try {[m
+[31m-    // Skip if already synced[m
+[31m-    if (dbUser.clerkId) {[m
+[31m-      console.log(`User ${dbUser.id} already synced with Clerk ID ${dbUser.clerkId}`)[m
+[31m-      return dbUser[m
+[31m-    }[m
+[32m+[m[32mexport async function syncUser([m
+[32m+[m[32m  context: HonoContext,[m
+[32m+[m[32m  event: ClerkWebhookEvent[m
+[32m+[m[32m): Promise<User> {[m
+[32m+[m[32m  const data = event.data[m
+[32m+[m[32m  const email = data.email_addresses?.[0]?.email_address[m
+ [m
+[31m-    // Get list of Clerk users to check for existing user[m
+[31m-    const { data: clerkUsers } = await listClerkUsers(c)[m
+[31m-    const existingClerkUser = clerkUsers.find([m
+[31m-      clerkUser => clerkUser.emailAddresses.some([m
+[31m-        emailObj => emailObj.emailAddress === dbUser.email[m
+[31m-      )[m
+[31m-    )[m
+[32m+[m[32m  if (!email) {[m
+[32m+[m[32m    throw new Error('User has no email address')[m
+[32m+[m[32m  }[m
+ [m
+[31m-    if (!existingClerkUser) {[m
+[31m-      throw new Error('No matching Clerk user found. Cannot create new users due to quota limit.')[m
+[31m-    }[m
+[32m+[m[32m  const db = await createDatabase(context)[m
+ [m
+[31m-    // Use existing Clerk user[m
+[31m-    console.log(`Found existing Clerk user for ${dbUser.email}`)[m
+[31m-    const clerkUserId = existingClerkUser.id[m
+[32m+[m[32m  // Check if user exists[m
+[32m+[m[32m  const existingResult = await db.execute({[m
+[32m+[m[32m    sql: 'SELECT * FROM users WHERE clerk_id = ? LIMIT 1',[m
+[32m+[m[32m    args: [data.id][m
+[32m+[m[32m  })[m
+[32m+[m[32m  const existingUser = existingResult.rows[0] ? rowToUser(existingResult.rows[0] as Record<string, any>) : undefined[m
+ [m
+[31m-    // Update D1 user with Clerk ID[m
+[31m-    const updatedUser = await db[m
+[31m-      .update(users)[m
+[31m-      .set({ clerkId: clerkUserId })[m
+[31m-      .where(eq(users.id, dbUser.id))[m
+[31m-      .returning()[m
+[31m-      .get()[m
+[32m+[m[32m  if (existingUser) {[m
+[32m+[m[32m    // Update user[m
+[32m+[m[32m    const result = await db.execute({[m
+[32m+[m[32m      sql: `[m
+[32m+[m[32m        UPDATE users[m[41m [m
+[32m+[m[32m        SET[m[41m [m
+[32m+[m[32m          first_name = ?,[m
+[32m+[m[32m          last_name = ?,[m
+[32m+[m[32m          email = ?,[m
+[32m+[m[32m          sync_status = 'synced',[m
+[32m+[m[32m          last_sync_attempt = ?,[m
+[32m+[m[32m          updated_at = ?[m
+[32m+[m[32m        WHERE id = ?[m
+[32m+[m[32m        RETURNING *[m
+[32m+[m[32m      `,[m
+[32m+[m[32m      args: [[m
+[32m+[m[32m        data.first_name || existingUser.firstName,[m
+[32m+[m[32m        data.last_name || existingUser.lastName,[m
+[32m+[m[32m        email,[m
+[32m+[m[32m        getCurrentTimestamp(),[m
+[32m+[m[32m        getCurrentTimestamp(),[m
+[32m+[m[32m        existingUser.id[m
+[32m+[m[32m      ][m
+[32m+[m[32m    })[m
+ [m
+[31m-    console.log(`Synced user ${dbUser.id} with Clerk ID ${clerkUserId}`)[m
+[31m-    return updatedUser[m
+[31m-  } catch (error) {[m
+[31m-    console.error(`Failed to sync user ${dbUser.id} to Clerk:`, error)[m
+[31m-    throw error[m
+[32m+[m[32m    return rowToUser(result.rows[0] as Record<string, any>)[m
+   }[m
+[31m-}[m
+ [m
+[31m-export async function getClerkUser(c: Context<AppContext>, clerkId: string) {[m
+[31m-  try {[m
+[31m-    const clerk = c.get('clerk')[m
+[31m-    return await clerk.users.getUser(clerkId)[m
+[31m-  } catch (error) {[m
+[31m-    console.error('Failed to get Clerk user:', error)[m
+[31m-    throw error[m
+[31m-  }[m
+[31m-}[m
+[32m+[m[32m  // Create new user[m
+[32m+[m[32m  const result = await db.execute({[m
+[32m+[m[32m    sql: `[m
+[32m+[m[32m      INSERT INTO users ([m
+[32m+[m[32m        id, clerk_id, first_name, last_name, email,[m
+[32m+[m[32m        role, status, sync_status, last_sync_attempt,[m
+[32m+[m[32m        created_at, updated_at[m
+[32m+[m[32m      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)[m
+[32m+[m[32m      RETURNING *[m
+[32m+[m[32m    `,[m
+[32m+[m[32m    args: [[m
+[32m+[m[32m      generateId(),[m
+[32m+[m[32m      data.id,[m
+[32m+[m[32m      data.first_name || '',[m
+[32m+[m[32m      data.last_name || '',[m
+[32m+[m[32m      email,[m
+[32m+[m[32m      'cashier',[m
+[32m+[m[32m      'active',[m
+[32m+[m[32m      'synced',[m
+[32m+[m[32m      getCurrentTimestamp(),[m
+[32m+[m[32m      getCurrentTimestamp(),[m
+[32m+[m[32m      getCurrentTimestamp()[m
+[32m+[m[32m    ][m
+[32m+[m[32m  })[m
+ [m
+[31m-export async function deleteClerkUser(c: Context<AppContext>, clerkId: string) {[m
+[31m-  try {[m
+[31m-    const clerk = c.get('clerk')[m
+[31m-    await clerk.users.deleteUser(clerkId)[m
+[31m-  } catch (error) {[m
+[31m-    console.error('Failed to delete Clerk user:', error)[m
+[31m-    throw error[m
+[31m-  }[m
+[32m+[m[32m  return rowToUser(result.rows[0] as Record<string, any>)[m
+ } [m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/src/lib/create-app.ts b/apps/api/src/lib/create-app.ts[m
+[1mindex 973d272..bae1172 100644[m
+[1m--- a/apps/api/src/lib/create-app.ts[m
+[1m+++ b/apps/api/src/lib/create-app.ts[m
+[36m@@ -3,14 +3,14 @@[m [mimport { cors } from 'hono/cors'[m
+ import { prettyJSON } from 'hono/pretty-json'[m
+ import { timing } from 'hono/timing'[m
+ import type { Context, Next } from 'hono'[m
+[31m-import type { Bindings } from '../db'[m
+[32m+[m[32mimport type { RuntimeEnv } from '../env'[m
+ import { errorHandler } from '../middleware/error'[m
+ import { logging, requestTiming } from '../middleware/logging'[m
+ import { authMiddleware } from '../middleware/auth'[m
+ import { versionMiddleware } from '../middleware/version'[m
+ [m
+ export const createApp = () => {[m
+[31m-  const app = new OpenAPIHono<{ Bindings: Bindings }>()[m
+[32m+[m[32m  const app = new OpenAPIHono<{ Bindings: RuntimeEnv }>()[m
+ [m
+   // Add global middleware[m
+   app.use('*', cors())[m
+[36m@@ -22,7 +22,7 @@[m [mexport const createApp = () => {[m
+   [m
+   // Debug middleware to log all requests[m
+   app.use('*', async (c, next) => {[m
+[31m-    console.log('📥 Incoming request:', {[m
+[32m+[m[32m    c.env.logger.debug('📥 Incoming request', {[m
+       method: c.req.method,[m
+       path: c.req.path,[m
+       headers: Object.fromEntries(c.req.raw.headers.entries())[m
+[36m@@ -38,7 +38,7 @@[m [mexport const createApp = () => {[m
+ [m
+   // Not found handler[m
+   app.notFound((c) => {[m
+[31m-    console.log('❌ Route not found:', c.req.path)[m
+[32m+[m[32m    c.env.logger.warn('❌ Route not found', { path: c.req.path })[m
+     return c.json({[m
+       error: {[m
+         code: 'NOT_FOUND',[m
+[1mdiff --git a/apps/api/src/lib/create-router.ts b/apps/api/src/lib/create-router.ts[m
+[1mindex 32cf949..f8cf8f3 100644[m
+[1m--- a/apps/api/src/lib/create-router.ts[m
+[1m+++ b/apps/api/src/lib/create-router.ts[m
+[36m@@ -1,16 +1,6 @@[m
+[32m+[m[32mimport type { AppContext } from '../types'[m
+ import { OpenAPIHono } from '@hono/zod-openapi'[m
+[31m-import type { AppContext } from '../db'[m
+ [m
+[31m-export const createRouter = (version: string = 'v1') => {[m
+[31m-  const router = new OpenAPIHono<AppContext>()[m
+[31m-  [m
+[31m-  // Add version-specific middleware here if needed[m
+[31m-  router.use('*', async (c, next) => {[m
+[31m-    await next()[m
+[31m-    c.header('X-API-Route-Version', version)[m
+[31m-  })[m
+[32m+[m[32mconst router = new OpenAPIHono<AppContext>()[m
+ [m
+[31m-  return router[m
+[31m-}[m
+[31m-[m
+[31m-export type Router = ReturnType<typeof createRouter> [m
+\ No newline at end of file[m
+[32m+[m[32mexport default router[m[41m [m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/src/lib/errors.ts b/apps/api/src/lib/errors.ts[m
+[1mindex e844c28..f961ccc 100644[m
+[1m--- a/apps/api/src/lib/errors.ts[m
+[1m+++ b/apps/api/src/lib/errors.ts[m
+[36m@@ -30,6 +30,17 @@[m [mexport class BadRequestError extends APIError {[m
+   }[m
+ }[m
+ [m
+[32m+[m[32mexport class DatabaseError extends Error {[m
+[32m+[m[32m  constructor([m
+[32m+[m[32m    message: string,[m
+[32m+[m[32m    public details: unknown = null,[m
+[32m+[m[32m    public code: string = 'DATABASE_ERROR'[m
+[32m+[m[32m  ) {[m
+[32m+[m[32m    super(message)[m
+[32m+[m[32m    this.name = 'DatabaseError'[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[32m+[m
+ // Error factories[m
+ export const notFound = (resource: string) => {[m
+   throw new NotFoundError(resource)[m
+[1mdiff --git a/apps/api/src/lib/logger.ts b/apps/api/src/lib/logger.ts[m
+[1mindex caef284..8a6001f 100644[m
+[1m--- a/apps/api/src/lib/logger.ts[m
+[1m+++ b/apps/api/src/lib/logger.ts[m
+[36m@@ -1,8 +1,8 @@[m
+ export interface Logger {[m
+[31m-  debug(message: string, context?: Record<string, unknown>): void[m
+[31m-  info(message: string, context?: Record<string, unknown>): void[m
+[31m-  warn(message: string, context?: Record<string, unknown>): void[m
+   error(message: string, context?: Record<string, unknown>): void[m
+[32m+[m[32m  warn(message: string, context?: Record<string, unknown>): void[m
+[32m+[m[32m  info(message: string, context?: Record<string, unknown>): void[m
+[32m+[m[32m  debug(message: string, context?: Record<string, unknown>): void[m
+ }[m
+ [m
+ export class ConsoleLogger implements Logger {[m
+[1mdiff --git a/apps/api/src/lib/response.ts b/apps/api/src/lib/response.ts[m
+[1mindex 1f03385..b5379b4 100644[m
+[1m--- a/apps/api/src/lib/response.ts[m
+[1m+++ b/apps/api/src/lib/response.ts[m
+[36m@@ -1,11 +1,9 @@[m
+ import type { Context } from 'hono'[m
+[31m-import type { AppContext } from '../db'[m
+[32m+[m[32mimport type { AppContext } from '../types'[m
+ [m
+[31m-export type APIResponse<T> = {[m
+[32m+[m[32mexport interface APIResponse<T> {[m
+   data: T[m
+[31m-  meta: {[m
+[31m-    timestamp: string[m
+[31m-  }[m
+[32m+[m[32m  meta?: Record<string, unknown>[m
+ }[m
+ [m
+ export const wrapResponse = <T>(c: Context<AppContext>, data: T): APIResponse<T> => ({[m
+[36m@@ -15,22 +13,16 @@[m [mexport const wrapResponse = <T>(c: Context<AppContext>, data: T): APIResponse<T>[m
+   }[m
+ })[m
+ [m
+[31m-export const wrapPaginatedResponse = <T>([m
+[32m+[m[32mexport const wrapError = ([m
+   c: Context<AppContext>,[m
+[31m-  data: T[],[m
+[31m-  total: number,[m
+[31m-  nextCursor?: string[m
+[31m-): APIResponse<{[m
+[31m-  items: T[][m
+[31m-  total: number[m
+[31m-  nextCursor?: string[m
+[31m-}> => ({[m
+[32m+[m[32m  error: Error,[m
+[32m+[m[32m  status: number = 500[m
+[32m+[m[32m): APIResponse<{ message: string }> => ({[m
+   data: {[m
+[31m-    items: data,[m
+[31m-    total,[m
+[31m-    nextCursor[m
+[32m+[m[32m    message: error.message[m
+   },[m
+   meta: {[m
+[31m-    timestamp: new Date().toISOString()[m
+[32m+[m[32m    timestamp: new Date().toISOString(),[m
+[32m+[m[32m    status[m
+   }[m
+ }) [m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/src/lib/utils.ts b/apps/api/src/lib/utils.ts[m
+[1mindex 4e5f60a..ed88250 100644[m
+[1m--- a/apps/api/src/lib/utils.ts[m
+[1m+++ b/apps/api/src/lib/utils.ts[m
+[36m@@ -10,4 +10,18 @@[m [mexport function generateId(): string {[m
+     result += chars[bytes[i] % chars.length][m
+   }[m
+   return result[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m/**[m
+[32m+[m[32m * Generate a URL-friendly slug from a string[m
+[32m+[m[32m * @param str The string to convert to a slug[m
+[32m+[m[32m * @returns A URL-friendly slug[m
+[32m+[m[32m */[m
+[32m+[m[32mexport function generateSlug(str: string): string {[m
+[32m+[m[32m  return str[m
+[32m+[m[32m    .toLowerCase()[m
+[32m+[m[32m    .trim()[m
+[32m+[m[32m    .replace(/[^\w\s-]/g, '') // Remove all non-word chars[m
+[32m+[m[32m    .replace(/[\s_-]+/g, '-') // Replace spaces and _ with -[m
+[32m+[m[32m    .replace(/^-+|-+$/g, '') // Remove leading/trailing -[m
+ } [m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/src/middleware/auth.ts b/apps/api/src/middleware/auth.ts[m
+[1mindex faef2ec..41f8c69 100644[m
+[1m--- a/apps/api/src/middleware/auth.ts[m
+[1m+++ b/apps/api/src/middleware/auth.ts[m
+[36m@@ -1,6 +1,6 @@[m
+ import { getAuth } from '@hono/clerk-auth'[m
+ import { Context, Next } from 'hono'[m
+[31m-import { AppContext } from '../db'[m
+[32m+[m[32mimport type { AppContext, OrganizationContext } from '../types'[m
+ [m
+ // Middleware to handle session checks and logging[m
+ export const authMiddleware = async (c: Context<AppContext>, next: Next) => {[m
+[36m@@ -13,12 +13,20 @@[m [mexport const authMiddleware = async (c: Context<AppContext>, next: Next) => {[m
+       }, 401)[m
+     }[m
+ [m
+[32m+[m[32m    // Set user ID in variables[m
+     c.set('userId', auth.userId)[m
+[32m+[m
+[32m+[m[32m    // Set organization context if present in session[m
+[32m+[m[32m    if (auth.orgId) {[m
+[32m+[m[32m      c.set('organizationId', auth.orgId)[m
+[32m+[m[32m    }[m
+[32m+[m
+     await next()[m
+[31m-  } catch (err) {[m
+[31m-    return c.json({[m
+[31m-      error: 'Unauthorized', [m
+[31m-      message: err instanceof Error ? err.message : 'Authentication failed'[m
+[32m+[m[32m    return[m
+[32m+[m[32m  } catch (error) {[m
+[32m+[m[32m    return c.json({[m[41m [m
+[32m+[m[32m      error: 'Unauthorized',[m
+[32m+[m[32m      message: 'Failed to authenticate request'[m
+     }, 401)[m
+   }[m
+ } [m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/src/middleware/error.ts b/apps/api/src/middleware/error.ts[m
+[1mindex 745f841..a976f70 100644[m
+[1m--- a/apps/api/src/middleware/error.ts[m
+[1m+++ b/apps/api/src/middleware/error.ts[m
+[36m@@ -1,117 +1,95 @@[m
+[31m-import { Context, Next } from 'hono'[m
+[31m-import { HTTPException } from 'hono/http-exception'[m
+[31m-import { ZodError } from 'zod'[m
+[31m-import type { AppContext } from '../db'[m
+[32m+[m[32mimport type { Next } from 'hono'[m
+[32m+[m[32mimport { DatabaseError, APIError } from '../lib/errors'[m
+[32m+[m[32mimport type { HonoContext } from '../types'[m
+[32m+[m[32mimport { generateId } from '../lib/utils'[m
+[32m+[m[32mimport { ErrorCode } from '../schemas/errors'[m
+ [m
+[31m-// Valid HTTP status codes for responses[m
+[31m-type StatusCode = 200 | 201 | 400 | 401 | 403 | 404 | 500[m
+[32m+[m[32minterface ErrorResponse {[m
+[32m+[m[32m  code: keyof typeof ErrorCode[m
+[32m+[m[32m  message: string[m
+[32m+[m[32m  details?: unknown[m
+[32m+[m[32m  requestId?: string[m
+[32m+[m[32m  statusCode: number[m
+[32m+[m[32m}[m
+ [m
+[31m-export class APIError extends Error {[m
+[31m-  constructor([m
+[31m-    message: string,[m
+[31m-    public statusCode: StatusCode = 500,[m
+[31m-    public code: string = 'INTERNAL_SERVER_ERROR',[m
+[31m-    public details?: unknown[m
+[31m-  ) {[m
+[31m-    super(message)[m
+[31m-    this.name = 'APIError'[m
+[32m+[m[32mfunction formatError(error: unknown): ErrorResponse {[m
+[32m+[m[32m  if (error instanceof APIError) {[m
+[32m+[m[32m    return {[m
+[32m+[m[32m      code: error.code as keyof typeof ErrorCode,[m
+[32m+[m[32m      message: error.message,[m
+[32m+[m[32m      details: error.details,[m
+[32m+[m[32m      statusCode: error.statusCode[m
+[32m+[m[32m    }[m
+   }[m
+[31m-}[m
+ [m
+[31m-type ErrorResponse = {[m
+[31m-  error: {[m
+[31m-    code: string[m
+[31m-    message: string[m
+[31m-    details?: unknown[m
+[31m-    stack?: string[m
+[32m+[m[32m  if (error instanceof DatabaseError) {[m
+[32m+[m[32m    return {[m
+[32m+[m[32m      code: 'INTERNAL_SERVER_ERROR',[m
+[32m+[m[32m      message: 'Database operation failed',[m
+[32m+[m[32m      details: {[m
+[32m+[m[32m        error: error.message,[m
+[32m+[m[32m        code: error.code,[m
+[32m+[m[32m        details: error.details[m
+[32m+[m[32m      },[m
+[32m+[m[32m      statusCode: 500[m
+[32m+[m[32m    }[m
+   }[m
+[31m-  meta: {[m
+[31m-    timestamp: string[m
+[32m+[m
+[32m+[m[32m  // Default error response[m
+[32m+[m[32m  return {[m
+[32m+[m[32m    code: 'INTERNAL_SERVER_ERROR',[m
+[32m+[m[32m    message: error instanceof Error ? error.message : 'An unexpected error occurred',[m
+[32m+[m[32m    statusCode: 500[m
+   }[m
+ }[m
+ [m
+[31m-export const errorHandler = async (c: Context<AppContext>, next: Next) => {[m
+[31m-  const requestId = crypto.randomUUID().split('-')[0][m
+[32m+[m[32mexport const errorHandler = async (c: HonoContext, next: Next) => {[m
+[32m+[m[32m  const requestId = generateId()[m
+[32m+[m[32m  // Store requestId in a header instead of context[m
+[32m+[m[32m  c.header('X-Request-ID', requestId)[m
+ [m
+   try {[m
+     await next()[m
+[32m+[m[32m    return[m
+   } catch (error) {[m
+[31m-    c.env.logger.error('Request error', { requestId, error })[m
+[31m-[m
+[31m-    const response: ErrorResponse = {[m
+[31m-      error: {[m
+[31m-        code: 'INTERNAL_SERVER_ERROR',[m
+[31m-        message: 'An unexpected error occurred',[m
+[31m-        ...(c.env.ENVIRONMENT === 'development' && { stack: (error as Error).stack })[m
+[31m-      },[m
+[31m-      meta: {[m
+[31m-        timestamp: new Date().toISOString()[m
+[31m-      }[m
+[31m-    }[m
+[31m-[m
+[31m-    // Handle different types of errors[m
+[31m-    if (error instanceof APIError) {[m
+[31m-      c.env.logger.error('API error', { [m
+[31m-        requestId,[m
+[31m-        code: error.code,[m
+[31m-        message: error.message,[m
+[31m-        details: error.details[m
+[31m-      })[m
+[31m-      response.error = {[m
+[31m-        code: error.code,[m
+[31m-        message: error.message,[m
+[31m-        details: error.details,[m
+[31m-        ...(c.env.ENVIRONMENT === 'development' && { stack: error.stack })[m
+[31m-      }[m
+[31m-      return c.json(response, error.statusCode as StatusCode)[m
+[31m-    }[m
+[31m-[m
+[31m-    if (error instanceof HTTPException) {[m
+[31m-      c.env.logger.error('HTTP error', {[m
+[31m-        requestId,[m
+[31m-        status: error.status,[m
+[31m-        message: error.message[m
+[31m-      })[m
+[31m-      response.error = {[m
+[31m-        code: 'HTTP_ERROR',[m
+[31m-        message: error.message,[m
+[31m-        ...(c.env.ENVIRONMENT === 'development' && { stack: error.stack })[m
+[31m-      }[m
+[31m-      return c.json(response, error.status as StatusCode)[m
+[31m-    }[m
+[31m-[m
+[31m-    if (error instanceof ZodError) {[m
+[31m-      c.env.logger.error('Validation error', {[m
+[31m-        requestId,[m
+[31m-        details: error.format()[m
+[31m-      })[m
+[31m-      response.error = {[m
+[31m-        code: 'VALIDATION_ERROR',[m
+[31m-        message: 'Invalid request data',[m
+[31m-        details: error.format(),[m
+[31m-        ...(c.env.ENVIRONMENT === 'development' && { stack: error.stack })[m
+[31m-      }[m
+[31m-      return c.json(response, 400)[m
+[31m-    }[m
+[31m-[m
+[31m-    // Default error response[m
+[31m-    return c.json(response, 500)[m
+[32m+[m[32m    const formattedError = formatError(error)[m
+[32m+[m[32m    return c.json({[m
+[32m+[m[32m      ...formattedError,[m
+[32m+[m[32m      requestId[m
+[32m+[m[32m    }, formattedError.statusCode as 400 | 401 | 403 | 404 | 500)[m
+   }[m
+ }[m
+ [m
+[31m-// Common error creators[m
+[32m+[m[32m// Error creators - these now return APIError instances[m
+ export const notFound = (resource: string) => {[m
+[31m-  throw new APIError(`${resource} not found`, 404, 'NOT_FOUND')[m
+[32m+[m[32m  throw new APIError([m
+[32m+[m[32m    `${resource} not found`,[m
+[32m+[m[32m    'NOT_FOUND',[m
+[32m+[m[32m    404[m
+[32m+[m[32m  )[m
+ }[m
+ [m
+ export const unauthorized = (message = 'Unauthorized') => {[m
+[31m-  throw new APIError(message, 401, 'UNAUTHORIZED')[m
+[32m+[m[32m  throw new APIError([m
+[32m+[m[32m    message,[m
+[32m+[m[32m    'UNAUTHORIZED',[m
+[32m+[m[32m    401[m
+[32m+[m[32m  )[m
+ }[m
+ [m
+ export const forbidden = (message = 'Forbidden') => {[m
+[31m-  throw new APIError(message, 403, 'FORBIDDEN')[m
+[32m+[m[32m  throw new APIError([m
+[32m+[m[32m    message,[m
+[32m+[m[32m    'FORBIDDEN',[m
+[32m+[m[32m    403[m
+[32m+[m[32m  )[m
+ }[m
+ [m
+ export const badRequest = (message: string, details?: unknown) => {[m
+[31m-  throw new APIError(message, 400, 'BAD_REQUEST', details)[m
+[32m+[m[32m  throw new APIError([m
+[32m+[m[32m    message,[m
+[32m+[m[32m    'BAD_REQUEST',[m
+[32m+[m[32m    400,[m
+[32m+[m[32m    details[m
+[32m+[m[32m  )[m
+ } [m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/src/middleware/logging.ts b/apps/api/src/middleware/logging.ts[m
+[1mindex 2886c0c..54f54ad 100644[m
+[1m--- a/apps/api/src/middleware/logging.ts[m
+[1m+++ b/apps/api/src/middleware/logging.ts[m
+[36m@@ -1,16 +1,27 @@[m
+[31m-import { Context, MiddlewareHandler } from 'hono'[m
+[31m-import { logger } from 'hono/logger'[m
+[31m-import { AppContext } from '../db'[m
+[32m+[m[32mimport type { Next } from 'hono'[m
+[32m+[m[32mimport type { HonoContext } from '../types'[m
+ [m
+[31m-export const logging = (): MiddlewareHandler<AppContext> => {[m
+[31m-  return logger()[m
+[32m+[m[32mexport const logging = () => {[m
+[32m+[m[32m  return async (c: HonoContext, next: Next) => {[m
+[32m+[m[32m    const start = Date.now()[m
+[32m+[m[32m    await next()[m
+[32m+[m[32m    const ms = Date.now() - start[m
+[32m+[m
+[32m+[m[32m    c.env.logger.info('Request completed', {[m
+[32m+[m[32m      method: c.req.method,[m
+[32m+[m[32m      path: c.req.path,[m
+[32m+[m[32m      status: c.res?.status,[m
+[32m+[m[32m      duration: `${ms}ms`[m
+[32m+[m[32m    })[m
+[32m+[m[32m  }[m
+ }[m
+ [m
+[31m-export const requestTiming = (): MiddlewareHandler<AppContext> => {[m
+[31m-  return async (c, next) => {[m
+[32m+[m[32mexport const requestTiming = () => {[m
+[32m+[m[32m  return async (c: HonoContext, next: Next) => {[m
+     const start = Date.now()[m
+     await next()[m
+[31m-    const end = Date.now()[m
+[31m-    c.res.headers.set('X-Response-Time', `${end - start}ms`)[m
+[32m+[m[32m    const ms = Date.now() - start[m
+[32m+[m
+[32m+[m[32m    c.header('X-Response-Time', `${ms}ms`)[m
+   }[m
+ } [m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/src/middleware/version.ts b/apps/api/src/middleware/version.ts[m
+[1mindex e70d55e..04656b3 100644[m
+[1m--- a/apps/api/src/middleware/version.ts[m
+[1m+++ b/apps/api/src/middleware/version.ts[m
+[36m@@ -1,17 +1,10 @@[m
+ import type { Context, Next } from 'hono'[m
+[31m-import type { AppContext } from '../db'[m
+[31m-import type { PinoLogger } from 'hono-pino'[m
+[31m-[m
+[31m-type VersionContext = AppContext & {[m
+[31m-  Variables: {[m
+[31m-    logger: PinoLogger[m
+[31m-  }[m
+[31m-}[m
+[32m+[m[32mimport type { AppContext } from '../types'[m
+ [m
+ // Version middleware[m
+[31m-export const versionMiddleware = async (c: Context<VersionContext>, next: Next) => {[m
+[32m+[m[32mexport const versionMiddleware = async (c: Context<AppContext>, next: Next) => {[m
+   const path = c.req.path[m
+[31m-  const logger = c.var.logger[m
+[32m+[m[32m  const logger = c.env.logger[m
+   const requestId = crypto.randomUUID().split('-')[0][m
+ [m
+   logger.debug('Version middleware called', { requestId, path })[m
+[1mdiff --git a/apps/api/src/routes/index.ts b/apps/api/src/routes/index.ts[m
+[1mindex e2f157f..e6b809a 100644[m
+[1m--- a/apps/api/src/routes/index.ts[m
+[1m+++ b/apps/api/src/routes/index.ts[m
+[36m@@ -1,11 +1,19 @@[m
+ import { Hono } from 'hono'[m
+[32m+[m[32mimport type { AppContext } from '../types'[m
+ import users from './users'[m
+[31m-import type { AppContext } from '../db'[m
+ [m
+ const app = new Hono<AppContext>()[m
+ [m
+ // Mount feature routes[m
+ app.route('/users', users)[m
+ [m
+[31m-export type AppType = typeof app[m
+[31m-export default app [m
+\ No newline at end of file[m
+[32m+[m[32mapp.get('/health', async (c) => {[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    await c.env.db.execute('SELECT 1')[m
+[32m+[m[32m    return c.json({ status: 'healthy', database: 'connected' })[m
+[32m+[m[32m  } catch (error) {[m
+[32m+[m[32m    return c.json({ status: 'unhealthy', database: 'disconnected', error: String(error) }, 500)[m
+[32m+[m[32m  }[m
+[32m+[m[32m})[m
+[32m+[m
+[32m+[m[32mexport type AppType = typeof app[m[41m [m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/src/routes/test.ts b/apps/api/src/routes/test.ts[m
+[1mdeleted file mode 100644[m
+[1mindex 7086a47..0000000[m
+[1m--- a/apps/api/src/routes/test.ts[m
+[1m+++ /dev/null[m
+[36m@@ -1,29 +0,0 @@[m
+[31m-import { Hono } from 'hono'[m
+[31m-import { sql } from 'drizzle-orm'[m
+[31m-import { wrapResponse } from '../lib/response'[m
+[31m-import type { AppContext } from '../db'[m
+[31m-import { users } from '../db/schema'[m
+[31m-[m
+[31m-const app = new Hono<AppContext>()[m
+[31m-[m
+[31m-const routes = app[m
+[31m-  .get('/', async (c) => {[m
+[31m-    try {[m
+[31m-      // Simple query to test connection[m
+[31m-      const result = await c.env.db[m
+[31m-        .select({ count: sql`count(*)` })[m
+[31m-        .from(users)[m
+[31m-        .get()[m
+[31m-      [m
+[31m-      return c.json(wrapResponse(c, { [m
+[31m-        message: 'Database connection successful',[m
+[31m-        result [m
+[31m-      }))[m
+[31m-    } catch (error) {[m
+[31m-      c.env.logger.error('Database connection test failed:', error)[m
+[31m-      throw error[m
+[31m-    }[m
+[31m-  })[m
+[31m-[m
+[31m-export type TestType = typeof routes[m
+[31m-export default app [m
+\ No newline at end of file[m
+[1mdiff --git a/apps/api/src/routes/users.ts b/apps/api/src/routes/users.ts[m
+[1mindex 97f4c56..b553b3b 100644[m
+[1m--- a/apps/api/src/routes/users.ts[m
+[1m+++ b/apps/api/src/routes/users.ts[m
+[36m@@ -1,264 +1,387 @@[m
+[31m-import { Hono } from 'hono'[m
+[31m-import { zValidator } from '@hono/zod-validator'[m
+[32m+[m[32mimport { OpenAPIHono } from '@hono/zod-openapi'[m
+[32m+[m[32mimport type { Context } from 'hono'[m
+ import { z } from 'zod'[m
+[31m-import { eq } from 'drizzle-orm'[m
+[31m-import { users } from '../db/schema'[m
+[31m-import { wrapResponse } from '../lib/response'[m
+[31m-import type { AppContext } from '../db'[m
+[31m-import type { LibSQLDatabase } from 'drizzle-orm/libsql'[m
+[31m-import { notFound } from '../middleware/error'[m
+[31m-import { getCurrentTimestamp } from '../db/utils'[m
+[31m-import { createClerkUser, listClerkUsers } from '../lib/clerk'[m
+[32m+[m[32mimport { requireOrganizationRole } from '../middleware/organization'[m
+ import { generateId } from '../lib/utils'[m
+[32m+[m[32mimport { getCurrentTimestamp } from '../db/utils'[m
+[32m+[m[32mimport type { AppContext } from '../types'[m
+[32m+[m[32mimport { notFound } from '../middleware/error'[m
+[32m+[m[32mimport { syncUser } from '../lib/clerk'[m
+[32m+[m[32mimport type { ClerkWebhookEvent } from '../lib/clerk'[m
+[32m+[m[32mimport { UserService } from '../db/services'[m
+[32m+[m[32mimport type { CreateUserInput, UpdateUserInput } from '../db/services/users'[m
+[32m+[m[32mimport { selectUserSchema, insertUserSchema, updateUserSchema } from '../db/schema/users'[m
+[32m+[m[32mimport { errorSchema, errorResponses } from '../schemas/errors'[m
+[32m+[m[32mimport { createRoute } from '@hono/zod-openapi'[m
+ [m
+[31m-const app = new Hono<AppContext>()[m
+[32m+[m[32mconst app = new OpenAPIHono<AppContext>()[m
+ [m
+[31m-const routes = app[m
+[31m-  .get('/', async (c) => {[m
+[31m-    try {[m
+[31m-      const db = c.env.db[m
+[31m-      const items = await db[m
+[31m-        .select()[m
+[31m-        .from(users)[m
+[31m-        .all()[m
+[31m-      return c.json(wrapResponse(c, { users: items }))[m
+[31m-    } catch (error) {[m
+[31m-      c.env.logger.error('Failed to fetch users:', error)[m
+[31m-      throw error[m
+[31m-    }[m
+[32m+[m[32m// Response schemas[m
+[32m+[m[32mconst listUsersResponseSchema = z.object({[m
+[32m+[m[32m  users: z.array(selectUserSchema),[m
+[32m+[m[32m  total: z.number()[m
+[32m+[m[32m}).openapi('ListUsersResponse')[m
+[32m+[m
+[32m+[m[32mconst deleteUserResponseSchema = z.object({[m
+[32m+[m[32m  success: z.boolean()[m
+[32m+[m[32m}).openapi('DeleteUserResponse')[m
+[32m+[m
+[32m+[m[32m// Query/Path parameter schemas[m
+[32m+[m[32mconst listUsersQuerySchema = z.object({[m
+[32m+[m[32m  cursor: z.string().optional().openapi({[m
+[32m+[m[32m    param: {[m
+[32m+[m[32m      name: 'cursor',[m
+[32m+[m[32m      in: 'query'[m
+[32m+[m[32m    },[m
+[32m+[m[32m    example: 'next_12345',[m
+[32m+[m[32m    description: 'Cursor for pagination'[m
+[32m+[m[32m  }),[m
+[32m+[m[32m  limit: z.number().optional().openapi({[m
+[32m+[m[32m    param: {[m
+[32m+[m[32m      name: 'limit',[m
+[32m+[m[32m      in: 'query'[m
+[32m+[m[32m    },[m
+[32m+[m[32m    example: 10,[m
+[32m+[m[32m    description: 'Number of items to return'[m
+   })[m
+[31m-  .post('/', async (c) => {[m
+[31m-    try {[m
+[31m-      const data = await c.req.json()[m
+[31m-      const db = c.env.db[m
+[31m-      const user = await db.insert(users).values(data).returning().get()[m
+[31m-      return c.json(wrapResponse(c, user))[m
+[31m-    } catch (error) {[m
+[31m-      c.env.logger.error('Failed to create user:', error)[m
+[31m-      throw error[m
+[31m-    }[m
+[32m+[m[32m}).openapi('ListUsersQuery')[m
+[32m+[m
+[32m+[m[32mconst userIdParamSchema = z.object({[m
+[32m+[m[32m  id: z.string().openapi({[m
+[32m+[m[32m    param: {[m
+[32m+[m[32m      name: 'id',[m
+[32m+[m[32m      in: 'path'[m
+[32m+[m[32m    },[m
+[32m+[m[32m    example: 'usr_123',[m
+[32m+[m[32m    description: 'User ID'[m
+   })[m
+[31m-  .get('/:id', async (c) => {[m
+[31m-    try {[m
+[31m-      const id = c.req.param('id')[m
+[31m-      const db = c.env.db[m
+[31m-      const user = await db.select().from(users).where(eq(users.id, id)).get()[m
+[31m-      if (!user) {[m
+[31m-        throw notFound('User')[m
+[32m+[m[32m}).openapi('UserIdParam')[m
+[32m+[m
+[32m+[m[32m// Route definitions[m
+[32m+[m[32mconst listUsersRoute = createRoute({[m
+[32m+[m[32m  method: 'get',[m
+[32m+[m[32m  path: '/',[m
+[32m+[m[32m  tags: ['Users'],[m
+[32m+[m[32m  summary: 'List users',[m
+[32m+[m[32m  description: 'Retrieve a paginated list of users',[m
+[32m+[m[32m  request: {[m
+[32m+[m[32m    query: listUsersQuerySchema[m
+[32m+[m[32m  },[m
+[32m+[m[32m  responses: {[m
+[32m+[m[32m    200: {[m
+[32m+[m[32m      content: {[m
+[32m+[m[32m        'application/json': {[m
+[32m+[m[32m          schema: listUsersResponseSchema[m
+[32m+[m[32m        }[m
+[32m+[m[32m      },[m
+[32m+[m[32m  

@@ -1,5 +1,5 @@
-tunnel: c3203d73-7d46-4d41-b512-b8904ba72d88
-credentials-file: /home/benfreed/.cloudflared/c3203d73-7d46-4d41-b512-b8904ba72d88.json
+tunnel: 78d63aa1-8135-438b-ba09-8bad2c4e46ba
+credentials-file: /home/benfreed/.cloudflared/78d63aa1-8135-438b-ba09-8bad2c4e46ba.json
 
 ingress:
   - hostname: webhook-worker.codingincabins.xyz

@@ -8,13 +8,10 @@ routes = [
 ]
 
 [vars]
-# Clerk
-CLERK_WEBHOOK_SECRET = "whsec_ou/pM27flfuteyf/gL1GPYreMvBwMiF/"
-
 # API configuration
 API_URL = "http://localhost:8787"  # Local API server
-API_SECRET = "test-api-secret"
 
 [dev]
 port = 8788
-inspector_port = 9230 
+inspector_port = 9230
+ip = "localhost"  # Use localhost 
