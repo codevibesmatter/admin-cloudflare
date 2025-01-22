@@ -33,6 +33,14 @@ export interface Env {
   
   // API configuration
   API_URL: string
+  API_SECRET: string
+}
+
+export type WebhookHeaders = {
+  'svix-id': string | null
+  'svix-timestamp': string | null
+  'svix-signature': string | null
+  [key: string]: string | null
 }
 
 // Add other shared types as needed 

@@ -1,7 +1,8 @@
-import type { Client } from '@libsql/client'
 import type { Logger } from '../../lib/logger'
 import type { HonoContext } from '../../types'
 import { createDatabase } from '../config'
+import type { LibSQLDatabase } from 'drizzle-orm/libsql'
+import { members, organizations } from '../schema/index'
 
 export interface ServiceConfig {
   logger: Logger
@@ -16,7 +17,7 @@ export class DatabaseError extends Error {
 }
 
 export class BaseService {
-  protected db?: Client
+  protected db?: LibSQLDatabase<{ members: typeof members, organizations: typeof organizations }>
   protected logger: Logger
   protected context: HonoContext
 
@@ -25,9 +26,9 @@ export class BaseService {
     this.context = config.context
   }
 
-  protected async initDb() {
+  protected initDb() {
     if (!this.db) {
-      this.db = await createDatabase(this.context)
+      this.db = createDatabase(this.context)
     }
     return this.db
   }
@@ -40,7 +41,7 @@ export class BaseService {
 
   protected async query<T>(fn: () => Promise<T>): Promise<T> {
     try {
-      await this.initDb()
+      this.initDb()
       return await fn()
     } catch (error) {
       this.logError('Database query failed', error)

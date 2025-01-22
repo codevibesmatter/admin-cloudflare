@@ -173,3 +173,109 @@ apps/web/src/features/test/
    - Performance tracking
    - Usage statistics
    - Error trending 
+
+## Monitoring System
+
+### Event Collection Architecture
+
+The monitoring system collects events from both the API and webhook-worker services without requiring WebSocket connections:
+
+```
+Web Dashboard ←-- Polling --→ API Events (KV Store)
+                ←-- Polling --→ Webhook Worker Events (KV Store)
+```
+
+### Event Structure
+```typescript
+interface WorkerEvent {
+  timestamp: number
+  service: 'api' | 'webhook-worker'
+  level: 'INFO' | 'WARN' | 'ERROR'
+  message: string
+  metadata: {
+    requestId?: string
+    path?: string
+    duration?: number
+    error?: string
+    [key: string]: any
+  }
+}
+```
+
+### Components
+
+1. **Worker-side Event Collection**
+   - Circular buffer in KV store for recent events
+   - Structured logging to both console and KV
+   - `/internal/events` endpoint for event retrieval
+   - TTL-based event cleanup
+
+2. **Dashboard Integration**
+   - Polling mechanism for both services
+   - Event merging and sorting
+   - Real-time UI updates
+   - Error handling and backoff
+
+### Features
+
+- **Event Filtering**
+  - Service filter (API/webhook-worker)
+  - Log level filter
+  - Time range selection
+  - Request path filtering
+
+- **Display Options**
+  - Chronological/reverse chronological
+  - Color-coded log levels
+  - Expandable event details
+  - Request/response inspection
+
+- **Performance**
+  - Incremental event fetching
+  - Event batching
+  - Client-side caching
+  - Adaptive polling
+
+### Security
+
+- Protected internal endpoints
+- Event data sanitization
+- Rate limiting
+- Role-based access control
+
+### Usage
+
+1. **Viewing Events**
+   - Navigate to monitoring tab
+   - Select desired filters
+   - Events auto-update every 5 seconds
+
+2. **Debugging**
+   - Click event to expand details
+   - View related events by requestId
+   - Export filtered events
+
+3. **Configuration**
+   - Adjust polling interval
+   - Configure retention period
+   - Set up alerts
+
+### Best Practices
+
+1. **Event Management**
+   - Use structured logging format
+   - Include relevant context
+   - Clean up old events
+   - Handle sensitive data
+
+2. **Performance**
+   - Implement pagination
+   - Use appropriate polling intervals
+   - Cache when possible
+   - Clean up resources
+
+3. **Security**
+   - Validate all inputs
+   - Sanitize event data
+   - Control access
+   - Audit event access 

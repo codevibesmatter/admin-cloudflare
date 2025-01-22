@@ -1,7 +1,9 @@
 import { BaseService, type ServiceConfig } from './base'
+import { organizations } from '../schema/organizations'
 import type { Organization } from '../schema/organizations'
 import { DatabaseError } from '../../lib/errors'
 import { generateId } from '../../lib/utils'
+import { eq } from 'drizzle-orm'
 
 export interface CreateOrganizationInput {
   name: string
@@ -16,19 +18,6 @@ export interface UpdateOrganizationInput {
   metadata?: Record<string, unknown>
 }
 
-// Helper function to convert database row to Organization type
-function rowToOrganization(row: Record<string, any>): Organization {
-  return {
-    id: row.id,
-    clerk_id: row.clerk_id,
-    name: row.name,
-    slug: row.slug,
-    metadata: row.metadata ? JSON.parse(row.metadata) : null,
-    created_at: row.created_at,
-    updated_at: row.updated_at
-  }
-}
-
 export class OrganizationService extends BaseService {
   constructor(config: ServiceConfig) {
     super(config)
@@ -36,12 +25,8 @@ export class OrganizationService extends BaseService {
 
   async getById(id: string): Promise<Organization | undefined> {
     return this.query(async () => {
-      const result = await this.db!.execute({
-        sql: 'SELECT * FROM organizations WHERE id = ?',
-        args: [id]
-      })
-      const row = result.rows[0]
-      return row ? rowToOrganization(row as Record<string, any>) : undefined
+      const result = await this.db!.select().from(organizations).where(eq(organizations.id, id))
+      return result[0]
     })
   }
 
@@ -49,25 +34,18 @@ export class OrganizationService extends BaseService {
     try {
       const now = new Date().toISOString()
       const id = generateId()
-      const result = await this.db!.execute({
-        sql: `
-          INSERT INTO organizations (
-            id, clerk_id, name, slug, metadata,
-            created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
-          RETURNING *
-        `,
-        args: [
-          id,
-          input.clerk_id,
-          input.name,
-          input.slug,
-          input.metadata ? JSON.stringify(input.metadata) : null,
-          now,
-          now
-        ]
-      })
-      return rowToOrganization(result.rows[0] as Record<string, any>)
+      
+      const [organization] = await this.db!.insert(organizations).values({
+        id,
+        clerk_id: input.clerk_id,
+        name: input.name,
+        slug: input.slug,
+        metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+        created_at: now,
+        updated_at: now
+      }).returning()
+
+      return organization
     } catch (error) {
       this.logError('Failed to create organization', error)
       throw new DatabaseError('Failed to create organization', error)
@@ -76,56 +54,33 @@ export class OrganizationService extends BaseService {
 
   async updateOrganization(id: string, input: UpdateOrganizationInput): Promise<Organization> {
     return this.query(async () => {
-      // Build dynamic SET clause and args array
-      const updates: string[] = []
-      const args: any[] = []
+      const [organization] = await this.db!.update(organizations)
+        .set({
+          ...(input.name !== undefined && { name: input.name }),
+          ...(input.slug !== undefined && { slug: input.slug }),
+          ...(input.metadata !== undefined && { 
+            metadata: input.metadata ? JSON.stringify(input.metadata) : null 
+          }),
+          updated_at: new Date().toISOString()
+        })
+        .where(eq(organizations.id, id))
+        .returning()
 
-      if (input.name !== undefined) {
-        updates.push('name = ?')
-        args.push(input.name)
-      }
-      if (input.slug !== undefined) {
-        updates.push('slug = ?')
-        args.push(input.slug)
-      }
-      if (input.metadata !== undefined) {
-        updates.push('metadata = ?')
-        args.push(input.metadata ? JSON.stringify(input.metadata) : null)
-      }
-
-      // Always update updated_at
-      updates.push('updated_at = ?')
-      args.push(new Date().toISOString())
-
-      // Add id to args array for WHERE clause
-      args.push(id)
-
-      const result = await this.db!.execute({
-        sql: `
-          UPDATE organizations 
-          SET ${updates.join(', ')}
-          WHERE id = ?
-          RETURNING *
-        `,
-        args
-      })
-
-      if (result.rows.length === 0) {
+      if (!organization) {
         throw new DatabaseError('Organization not found', null, 'ORGANIZATION_NOT_FOUND')
       }
 
-      return rowToOrganization(result.rows[0] as Record<string, any>)
+      return organization
     })
   }
 
   async deleteOrganization(id: string): Promise<void> {
     try {
-      const result = await this.db!.execute({
-        sql: 'DELETE FROM organizations WHERE id = ? RETURNING *',
-        args: [id]
-      })
+      const [organization] = await this.db!.delete(organizations)
+        .where(eq(organizations.id, id))
+        .returning()
 
-      if (result.rows.length === 0) {
+      if (!organization) {
         throw new DatabaseError('Organization not found', null, 'ORGANIZATION_NOT_FOUND')
       }
     } catch (error) {
@@ -136,12 +91,10 @@ export class OrganizationService extends BaseService {
 
   async getByClerkId(clerkId: string): Promise<Organization | undefined> {
     return this.query(async () => {
-      const result = await this.db!.execute({
-        sql: 'SELECT * FROM organizations WHERE clerk_id = ?',
-        args: [clerkId]
-      })
-      const row = result.rows[0]
-      return row ? rowToOrganization(row as Record<string, any>) : undefined
+      const result = await this.db!.select()
+        .from(organizations)
+        .where(eq(organizations.clerk_id, clerkId))
+      return result[0]
     })
   }
 } 

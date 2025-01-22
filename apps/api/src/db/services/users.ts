@@ -1,6 +1,8 @@
 import { BaseService } from './base'
+import { users } from '../schema/users'
 import type { User } from '../schema/users'
 import { generateId } from '../../lib/utils'
+import { eq, desc, and, or, inArray } from 'drizzle-orm'
 
 export interface CreateUserInput {
   clerkId: string
@@ -21,56 +23,24 @@ export interface UpdateUserInput {
   status?: 'active' | 'inactive' | 'invited' | 'suspended'
 }
 
-// Helper function to convert database row to User type
-function rowToUser(row: Record<string, any>): User {
-  return {
-    id: row.id,
-    clerkId: row.clerk_id,
-    email: row.email,
-    firstName: row.first_name,
-    lastName: row.last_name,
-    imageUrl: row.image_url,
-    role: row.role,
-    status: row.status,
-    syncStatus: row.sync_status,
-    lastSyncAttempt: row.last_sync_attempt,
-    syncError: row.sync_error,
-    metadata: row.metadata,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  }
-}
-
 export class UserService extends BaseService {
   async getUsers(): Promise<User[]> {
     return this.query(async () => {
-      const result = await this.db!.execute(`
-        SELECT * FROM users 
-        ORDER BY created_at DESC
-      `)
-      return result.rows.map(row => rowToUser(row as Record<string, any>))
+      return await this.db!.select().from(users).orderBy(desc(users.createdAt))
     })
   }
 
   async getUserById(id: string): Promise<User | undefined> {
     return this.query(async () => {
-      const result = await this.db!.execute({
-        sql: 'SELECT * FROM users WHERE id = ?',
-        args: [id]
-      })
-      const row = result.rows[0]
-      return row ? rowToUser(row as Record<string, any>) : undefined
+      const result = await this.db!.select().from(users).where(eq(users.id, id))
+      return result[0]
     })
   }
 
   async getUserByClerkId(clerkId: string): Promise<User | undefined> {
     return this.query(async () => {
-      const result = await this.db!.execute({
-        sql: 'SELECT * FROM users WHERE clerk_id = ?',
-        args: [clerkId]
-      })
-      const row = result.rows[0]
-      return row ? rowToUser(row as Record<string, any>) : undefined
+      const result = await this.db!.select().from(users).where(eq(users.clerkId, clerkId))
+      return result[0]
     })
   }
 
@@ -78,114 +48,61 @@ export class UserService extends BaseService {
     return this.query(async () => {
       const now = new Date().toISOString()
       const id = generateId()
-      const result = await this.db!.execute({
-        sql: `
-          INSERT INTO users (
-            id, clerk_id, email, first_name, last_name, 
-            image_url, role, status, sync_status,
-            created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          RETURNING *
-        `,
-        args: [
-          id,
-          input.clerkId,
-          input.email,
-          input.firstName,
-          input.lastName,
-          input.imageUrl || null,
-          input.role || 'cashier',
-          input.status || 'active',
-          'pending',
-          now,
-          now
-        ]
-      })
-      return rowToUser(result.rows[0] as Record<string, any>)
+      
+      const [user] = await this.db!.insert(users).values({
+        id,
+        clerkId: input.clerkId,
+        email: input.email,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        imageUrl: input.imageUrl,
+        role: input.role || 'cashier',
+        status: input.status || 'active',
+        syncStatus: 'pending',
+        createdAt: now,
+        updatedAt: now
+      }).returning()
+
+      return user
     })
   }
 
   async updateUser(id: string, input: UpdateUserInput): Promise<User> {
     return this.query(async () => {
-      // Build dynamic SET clause and args array
-      const updates: string[] = []
-      const args: any[] = []
+      const [user] = await this.db!.update(users)
+        .set({
+          ...(input.email !== undefined && { email: input.email }),
+          ...(input.firstName !== undefined && { firstName: input.firstName }),
+          ...(input.lastName !== undefined && { lastName: input.lastName }),
+          ...(input.imageUrl !== undefined && { imageUrl: input.imageUrl }),
+          ...(input.role !== undefined && { role: input.role }),
+          ...(input.status !== undefined && { status: input.status }),
+          updatedAt: new Date().toISOString()
+        })
+        .where(eq(users.id, id))
+        .returning()
 
-      if (input.email !== undefined) {
-        updates.push('email = ?')
-        args.push(input.email)
-      }
-      if (input.firstName !== undefined) {
-        updates.push('first_name = ?')
-        args.push(input.firstName)
-      }
-      if (input.lastName !== undefined) {
-        updates.push('last_name = ?')
-        args.push(input.lastName)
-      }
-      if (input.imageUrl !== undefined) {
-        updates.push('image_url = ?')
-        args.push(input.imageUrl)
-      }
-      if (input.role !== undefined) {
-        updates.push('role = ?')
-        args.push(input.role)
-      }
-      if (input.status !== undefined) {
-        updates.push('status = ?')
-        args.push(input.status)
-      }
-
-      // Always update updated_at
-      updates.push('updated_at = ?')
-      args.push(new Date().toISOString())
-
-      // Add id to args array for WHERE clause
-      args.push(id)
-
-      const result = await this.db!.execute({
-        sql: `
-          UPDATE users 
-          SET ${updates.join(', ')}
-          WHERE id = ?
-          RETURNING *
-        `,
-        args
-      })
-      return rowToUser(result.rows[0] as Record<string, any>)
+      return user
     })
   }
 
   async deleteUser(id: string): Promise<void> {
     await this.query(async () => {
-      await this.db!.execute({
-        sql: 'DELETE FROM users WHERE id = ?',
-        args: [id]
-      })
+      await this.db!.delete(users).where(eq(users.id, id))
     })
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     return this.query(async () => {
-      const result = await this.db!.execute({
-        sql: 'SELECT * FROM users WHERE email = ?',
-        args: [email]
-      })
-      const row = result.rows[0]
-      return row ? rowToUser(row as Record<string, any>) : undefined
+      const result = await this.db!.select().from(users).where(eq(users.email, email))
+      return result[0]
     })
   }
 
   async getUsersByIds(ids: string[]): Promise<User[]> {
     return this.query(async () => {
       if (ids.length === 0) return []
-      
-      const placeholders = ids.map(() => '?').join(',')
-      const result = await this.db!.execute({
-        sql: `SELECT * FROM users WHERE id IN (${placeholders})`,
-        args: ids
-      })
-      return result.rows.map(row => rowToUser(row as Record<string, any>))
+      return await this.db!.select().from(users).where(inArray(users.id, ids))
     })
   }
 } 

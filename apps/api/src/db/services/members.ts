@@ -1,7 +1,9 @@
 import { BaseService, type ServiceConfig } from './base'
+import { members } from '../schema/index'
 import type { Member } from '../schema/index'
 import { DatabaseError } from '../../lib/errors'
 import { generateId } from '../../lib/utils'
+import { eq, and } from 'drizzle-orm'
 
 export type OrganizationRoleType = 'owner' | 'admin' | 'member'
 
@@ -9,18 +11,6 @@ export interface AddMemberInput {
   organization_id: string
   user_id: string
   role: OrganizationRoleType
-}
-
-// Helper function to convert database row to Member type
-function rowToMember(row: Record<string, any>): Member {
-  return {
-    id: row.id,
-    organization_id: row.organization_id,
-    user_id: row.user_id,
-    role: row.role as OrganizationRoleType,
-    created_at: row.created_at,
-    updated_at: row.updated_at
-  }
 }
 
 export class MemberService extends BaseService {
@@ -32,44 +22,36 @@ export class MemberService extends BaseService {
     return this.query(async () => {
       const now = new Date().toISOString()
       const id = generateId()
-      const result = await this.db!.execute({
-        sql: `
-          INSERT INTO members (
-            id, organization_id, user_id, role,
-            created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?)
-          RETURNING *
-        `,
-        args: [
-          id,
-          input.organization_id,
-          input.user_id,
-          input.role,
-          now,
-          now
-        ]
-      })
+      
+      const [member] = await this.db!.insert(members).values({
+        id,
+        organization_id: input.organization_id,
+        user_id: input.user_id,
+        role: input.role,
+        created_at: now,
+        updated_at: now
+      }).returning()
 
-      if (result.rows.length === 0) {
+      if (!member) {
         throw new DatabaseError('Failed to add member')
       }
 
-      return rowToMember(result.rows[0] as Record<string, any>)
+      return member
     })
   }
 
   async removeMember(organization_id: string, user_id: string): Promise<void> {
     return this.query(async () => {
-      const result = await this.db!.execute({
-        sql: `
-          DELETE FROM members 
-          WHERE organization_id = ? AND user_id = ?
-          RETURNING *
-        `,
-        args: [organization_id, user_id]
-      })
+      const [member] = await this.db!.delete(members)
+        .where(
+          and(
+            eq(members.organization_id, organization_id),
+            eq(members.user_id, user_id)
+          )
+        )
+        .returning()
 
-      if (result.rows.length === 0) {
+      if (!member) {
         throw new DatabaseError('Member not found', null, 'MEMBER_NOT_FOUND')
       }
     })
@@ -77,26 +59,24 @@ export class MemberService extends BaseService {
 
   async getMembers(organization_id: string): Promise<Member[]> {
     return this.query(async () => {
-      const result = await this.db!.execute({
-        sql: 'SELECT * FROM members WHERE organization_id = ?',
-        args: [organization_id]
-      })
-      return result.rows.map(row => rowToMember(row as Record<string, any>))
+      return await this.db!.select()
+        .from(members)
+        .where(eq(members.organization_id, organization_id))
     })
   }
 
   async getMember(organization_id: string, user_id: string): Promise<Member | undefined> {
     return this.query(async () => {
-      const result = await this.db!.execute({
-        sql: `
-          SELECT * FROM members 
-          WHERE organization_id = ? AND user_id = ?
-          LIMIT 1
-        `,
-        args: [organization_id, user_id]
-      })
-      const row = result.rows[0]
-      return row ? rowToMember(row as Record<string, any>) : undefined
+      const result = await this.db!.select()
+        .from(members)
+        .where(
+          and(
+            eq(members.organization_id, organization_id),
+            eq(members.user_id, user_id)
+          )
+        )
+        .limit(1)
+      return result[0]
     })
   }
 } 

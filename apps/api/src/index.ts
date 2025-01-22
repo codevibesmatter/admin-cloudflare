@@ -11,6 +11,9 @@ import pino from 'pino'
 import { loadEnv, createEnv } from './env'
 import { createDatabase } from './db/config'
 import { OpenAPIHono } from '@hono/zod-openapi'
+import { sql } from 'drizzle-orm'
+import { createClient } from '@libsql/client'
+import { members } from './db/schema/index'
 
 // Create app with proper typing
 const app = new OpenAPIHono<{ Bindings: AppBindings; Variables: Variables }>()
@@ -105,9 +108,14 @@ app.route('/api/webhooks/clerk', webhooksRouter)
 app.get('/api/health', async (c) => {
   try {
     console.log('Testing database connection...')
-    await c.env.db.execute('SELECT 1')
-    console.log('Database query successful')
-    return c.json({ status: 'healthy', database: 'connected' })
+    // Use the existing Drizzle instance from middleware
+    const [result] = await c.env.db.select({ one: sql`1` }).from(sql`(SELECT 1) as test`)
+    console.log('Database query successful:', result)
+    return c.json({ 
+      status: 'healthy', 
+      database: 'connected',
+      result
+    })
   } catch (error) {
     console.error('Database health check failed:', {
       error: error instanceof Error ? error.message : 'Unknown error',

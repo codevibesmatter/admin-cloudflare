@@ -8,6 +8,11 @@
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@admin-cloudflare/api-types": ["../../packages/api-types/src"],
+      "@admin-cloudflare/api-types/*": ["../../packages/api-types/src/*"]
+    }
   }
 } 
