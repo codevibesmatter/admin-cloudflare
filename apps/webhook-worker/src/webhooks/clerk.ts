@@ -16,13 +16,13 @@ import { RateLimit } from '../lib/rate-limit'
 const REQUIRED_HEADERS = ['svix-id', 'svix-timestamp', 'svix-signature']
 const rateLimit = new RateLimit()
 
-// Clean up rate limit cache every 5 minutes
-setInterval(() => rateLimit.cleanup(), 5 * 60 * 1000)
-
 const app = new Hono<{ Bindings: Env }>()
 
 app.post('/webhooks/clerk', async (c) => {
   try {
+    // Clean up rate limit cache on each request
+    rateLimit.cleanup()
+    
     const event = await validateWebhook(c)
     const parsedEvent = webhookEventSchema.parse(event)
 
