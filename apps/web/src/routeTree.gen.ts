@@ -33,9 +33,6 @@ const authForgotPasswordLazyImport = createFileRoute(
 const AuthenticatedSettingsRouteLazyImport = createFileRoute(
   '/_authenticated/settings',
 )()
-const AuthenticatedCreateOrganizationRouteLazyImport = createFileRoute(
-  '/_authenticated/create-organization',
-)()
 const AuthenticatedUsersIndexLazyImport = createFileRoute(
   '/_authenticated/users/',
 )()
@@ -47,9 +44,6 @@ const AuthenticatedSettingsIndexLazyImport = createFileRoute(
 )()
 const AuthenticatedHelpCenterIndexLazyImport = createFileRoute(
   '/_authenticated/help-center/',
-)()
-const AuthenticatedCreateOrganizationIndexLazyImport = createFileRoute(
-  '/_authenticated/create-organization/',
 )()
 const AuthenticatedChatsIndexLazyImport = createFileRoute(
   '/_authenticated/chats/',
@@ -158,17 +152,6 @@ const AuthenticatedSettingsRouteLazyRoute =
     import('./routes/_authenticated/settings/route.lazy').then((d) => d.Route),
   )
 
-const AuthenticatedCreateOrganizationRouteLazyRoute =
-  AuthenticatedCreateOrganizationRouteLazyImport.update({
-    id: '/create-organization',
-    path: '/create-organization',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any).lazy(() =>
-    import('./routes/_authenticated/create-organization/route.lazy').then(
-      (d) => d.Route,
-    ),
-  )
-
 const authOtpRoute = authOtpImport.update({
   id: '/(auth)/otp',
   path: '/otp',
@@ -215,17 +198,6 @@ const AuthenticatedHelpCenterIndexLazyRoute =
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any).lazy(() =>
     import('./routes/_authenticated/help-center/index.lazy').then(
-      (d) => d.Route,
-    ),
-  )
-
-const AuthenticatedCreateOrganizationIndexLazyRoute =
-  AuthenticatedCreateOrganizationIndexLazyImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedCreateOrganizationRouteLazyRoute,
-  } as any).lazy(() =>
-    import('./routes/_authenticated/create-organization/index.lazy').then(
       (d) => d.Route,
     ),
   )
@@ -317,13 +289,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/otp'
       preLoaderRoute: typeof authOtpImport
       parentRoute: typeof rootRoute
-    }
-    '/_authenticated/create-organization': {
-      id: '/_authenticated/create-organization'
-      path: '/create-organization'
-      fullPath: '/create-organization'
-      preLoaderRoute: typeof AuthenticatedCreateOrganizationRouteLazyImport
-      parentRoute: typeof AuthenticatedRouteImport
     }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
@@ -437,13 +402,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChatsIndexLazyImport
       parentRoute: typeof AuthenticatedRouteImport
     }
-    '/_authenticated/create-organization/': {
-      id: '/_authenticated/create-organization/'
-      path: '/'
-      fullPath: '/create-organization/'
-      preLoaderRoute: typeof AuthenticatedCreateOrganizationIndexLazyImport
-      parentRoute: typeof AuthenticatedCreateOrganizationRouteLazyImport
-    }
     '/_authenticated/help-center/': {
       id: '/_authenticated/help-center/'
       path: '/help-center'
@@ -477,21 +435,6 @@ declare module '@tanstack/react-router' {
 
 // Create and export the route tree
 
-interface AuthenticatedCreateOrganizationRouteLazyRouteChildren {
-  AuthenticatedCreateOrganizationIndexLazyRoute: typeof AuthenticatedCreateOrganizationIndexLazyRoute
-}
-
-const AuthenticatedCreateOrganizationRouteLazyRouteChildren: AuthenticatedCreateOrganizationRouteLazyRouteChildren =
-  {
-    AuthenticatedCreateOrganizationIndexLazyRoute:
-      AuthenticatedCreateOrganizationIndexLazyRoute,
-  }
-
-const AuthenticatedCreateOrganizationRouteLazyRouteWithChildren =
-  AuthenticatedCreateOrganizationRouteLazyRoute._addFileChildren(
-    AuthenticatedCreateOrganizationRouteLazyRouteChildren,
-  )
-
 interface AuthenticatedSettingsRouteLazyRouteChildren {
   AuthenticatedSettingsAccountLazyRoute: typeof AuthenticatedSettingsAccountLazyRoute
   AuthenticatedSettingsAppearanceLazyRoute: typeof AuthenticatedSettingsAppearanceLazyRoute
@@ -519,7 +462,6 @@ const AuthenticatedSettingsRouteLazyRouteWithChildren =
   )
 
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedCreateOrganizationRouteLazyRoute: typeof AuthenticatedCreateOrganizationRouteLazyRouteWithChildren
   AuthenticatedSettingsRouteLazyRoute: typeof AuthenticatedSettingsRouteLazyRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAppsIndexLazyRoute: typeof AuthenticatedAppsIndexLazyRoute
@@ -530,8 +472,6 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedCreateOrganizationRouteLazyRoute:
-    AuthenticatedCreateOrganizationRouteLazyRouteWithChildren,
   AuthenticatedSettingsRouteLazyRoute:
     AuthenticatedSettingsRouteLazyRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
@@ -549,7 +489,6 @@ export interface FileRoutesByFullPath {
   '': typeof AuthenticatedRouteRouteWithChildren
   '/500': typeof errors500LazyRoute
   '/otp': typeof authOtpRoute
-  '/create-organization': typeof AuthenticatedCreateOrganizationRouteLazyRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRouteLazyRouteWithChildren
   '/forgot-password': typeof authForgotPasswordLazyRoute
   '/sign-in': typeof authSignInLazyRoute
@@ -565,7 +504,6 @@ export interface FileRoutesByFullPath {
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsLazyRoute
   '/apps': typeof AuthenticatedAppsIndexLazyRoute
   '/chats': typeof AuthenticatedChatsIndexLazyRoute
-  '/create-organization/': typeof AuthenticatedCreateOrganizationIndexLazyRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexLazyRoute
   '/settings/': typeof AuthenticatedSettingsIndexLazyRoute
   '/tasks': typeof AuthenticatedTasksIndexLazyRoute
@@ -589,7 +527,6 @@ export interface FileRoutesByTo {
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsLazyRoute
   '/apps': typeof AuthenticatedAppsIndexLazyRoute
   '/chats': typeof AuthenticatedChatsIndexLazyRoute
-  '/create-organization': typeof AuthenticatedCreateOrganizationIndexLazyRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexLazyRoute
   '/settings': typeof AuthenticatedSettingsIndexLazyRoute
   '/tasks': typeof AuthenticatedTasksIndexLazyRoute
@@ -601,7 +538,6 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/(auth)/500': typeof auth500Route
   '/(auth)/otp': typeof authOtpRoute
-  '/_authenticated/create-organization': typeof AuthenticatedCreateOrganizationRouteLazyRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteLazyRouteWithChildren
   '/(auth)/forgot-password': typeof authForgotPasswordLazyRoute
   '/(auth)/sign-in': typeof authSignInLazyRoute
@@ -618,7 +554,6 @@ export interface FileRoutesById {
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsLazyRoute
   '/_authenticated/apps/': typeof AuthenticatedAppsIndexLazyRoute
   '/_authenticated/chats/': typeof AuthenticatedChatsIndexLazyRoute
-  '/_authenticated/create-organization/': typeof AuthenticatedCreateOrganizationIndexLazyRoute
   '/_authenticated/help-center/': typeof AuthenticatedHelpCenterIndexLazyRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexLazyRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexLazyRoute
@@ -631,7 +566,6 @@ export interface FileRouteTypes {
     | ''
     | '/500'
     | '/otp'
-    | '/create-organization'
     | '/settings'
     | '/forgot-password'
     | '/sign-in'
@@ -647,7 +581,6 @@ export interface FileRouteTypes {
     | '/settings/notifications'
     | '/apps'
     | '/chats'
-    | '/create-organization/'
     | '/help-center'
     | '/settings/'
     | '/tasks'
@@ -670,7 +603,6 @@ export interface FileRouteTypes {
     | '/settings/notifications'
     | '/apps'
     | '/chats'
-    | '/create-organization'
     | '/help-center'
     | '/settings'
     | '/tasks'
@@ -680,7 +612,6 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/(auth)/500'
     | '/(auth)/otp'
-    | '/_authenticated/create-organization'
     | '/_authenticated/settings'
     | '/(auth)/forgot-password'
     | '/(auth)/sign-in'
@@ -697,7 +628,6 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/notifications'
     | '/_authenticated/apps/'
     | '/_authenticated/chats/'
-    | '/_authenticated/create-organization/'
     | '/_authenticated/help-center/'
     | '/_authenticated/settings/'
     | '/_authenticated/tasks/'
@@ -759,7 +689,6 @@ export const routeTree = rootRoute
     "/_authenticated": {
       "filePath": "_authenticated/route.tsx",
       "children": [
-        "/_authenticated/create-organization",
         "/_authenticated/settings",
         "/_authenticated/",
         "/_authenticated/apps/",
@@ -774,13 +703,6 @@ export const routeTree = rootRoute
     },
     "/(auth)/otp": {
       "filePath": "(auth)/otp.tsx"
-    },
-    "/_authenticated/create-organization": {
-      "filePath": "_authenticated/create-organization/route.lazy.tsx",
-      "parent": "/_authenticated",
-      "children": [
-        "/_authenticated/create-organization/"
-      ]
     },
     "/_authenticated/settings": {
       "filePath": "_authenticated/settings/route.lazy.tsx",
@@ -844,10 +766,6 @@ export const routeTree = rootRoute
     "/_authenticated/chats/": {
       "filePath": "_authenticated/chats/index.lazy.tsx",
       "parent": "/_authenticated"
-    },
-    "/_authenticated/create-organization/": {
-      "filePath": "_authenticated/create-organization/index.lazy.tsx",
-      "parent": "/_authenticated/create-organization"
     },
     "/_authenticated/help-center/": {
       "filePath": "_authenticated/help-center/index.lazy.tsx",

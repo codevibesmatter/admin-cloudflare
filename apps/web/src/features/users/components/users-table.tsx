@@ -26,7 +26,8 @@ import {
 } from '@/components/ui/table'
 import { toast } from '@/hooks/use-toast'
 import { useUsers, useDeleteUser, useUpdateUser, userKeys } from '../api/users'
-import { User, userRoleSchema, userStatusSchema } from '../data/schema'
+import type { User } from '@admin-cloudflare/api-types'
+import { userRoleSchema, userStatusSchema } from '@admin-cloudflare/api-types'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -299,24 +300,25 @@ const SelectCell = ({
 export function UsersTable() {
   const [sorting, setSorting] = useState<SortingState>([])
   const { ref, inView } = useInView()
-  
+  const [limit] = useState(50)
+
   const {
     data,
     isLoading,
     isFetchingNextPage,
-    fetchNextPage,
     hasNextPage,
-    refetch
+    fetchNextPage,
+    refetch,
   } = useUsers(
-    50,
-    sorting.length > 0 ? sorting[0].id : undefined,
-    sorting.length > 0 ? (sorting[0].desc ? 'desc' : 'asc') : undefined
+    limit,
+    sorting[0]?.id,
+    sorting[0]?.desc ? 'desc' : 'asc'
   )
 
-  const flatData = useMemo(
-    () => data?.pages.flatMap((page) => page.data.users) ?? [],
-    [data]
-  )
+  const users = useMemo(() => {
+    if (!data?.pages) return []
+    return data.pages.flatMap((page) => page.data.users)
+  }, [data?.pages])
 
   const columns: ColumnDef<User>[] = useMemo(() => [
     {
@@ -528,7 +530,7 @@ export function UsersTable() {
   ], [])
 
   const table = useReactTable({
-    data: flatData,
+    data: users,
     columns,
     getCoreRowModel: getCoreRowModel(),
     state: {
@@ -577,7 +579,7 @@ export function UsersTable() {
   useEffect(() => {
     const currentState = {
       sorting,
-      dataLength: flatData.length,
+      dataLength: users.length,
       isLoading
     }
 
@@ -592,7 +594,7 @@ export function UsersTable() {
           order: sorting[0].desc ? 'desc' : 'asc'
         } : 'none',
         data: {
-          total: flatData.length,
+          total: users.length,
           pages: data?.pages?.length ?? 0,
           isLoading,
           isFetchingMore: isFetchingNextPage,
@@ -601,13 +603,13 @@ export function UsersTable() {
       })
       setPrevState(currentState)
     }
-  }, [sorting, data, flatData, isLoading, isFetchingNextPage, hasNextPage])
+  }, [sorting, data, users, isLoading, isFetchingNextPage, hasNextPage])
 
   useEffect(() => {
-    if (inView && hasNextPage) {
+    if (inView && hasNextPage && !isFetchingNextPage) {
       fetchNextPage()
     }
-  }, [inView, hasNextPage, fetchNextPage])
+  }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage])
 
   return (
     <div className={cn('rounded-md border')}>
@@ -639,7 +641,7 @@ export function UsersTable() {
                 </div>
               </TableCell>
             </TableRow>
-          ) : flatData.length === 0 ? (
+          ) : users.length === 0 ? (
             <TableRow>
               <TableCell
                 colSpan={columns.length}

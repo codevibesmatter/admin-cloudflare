@@ -1,19 +1,24 @@
-import { Hono } from 'hono'
+import { OpenAPIHono } from '@hono/zod-openapi'
+import { z } from 'zod'
+import { sql } from 'drizzle-orm'
 import type { AppContext } from '../types'
+import { errorResponses } from '../schemas/errors'
 import users from './users'
 
-const app = new Hono<AppContext>()
+const app = new OpenAPIHono<AppContext>()
 
 // Mount feature routes
 app.route('/users', users)
 
-app.get('/health', async (c) => {
+// Health check route
+app.get('/', async (c) => {
   try {
-    await c.env.db.execute('SELECT 1')
-    return c.json({ status: 'healthy', database: 'connected' })
+    // Check database connection
+    await c.env.db.select().from(sql`SELECT 1`).get()
+    return c.json({ status: 'ok' })
   } catch (error) {
-    return c.json({ status: 'unhealthy', database: 'disconnected', error: String(error) }, 500)
+    return c.json({ status: 'error', error: String(error) }, 500)
   }
 })
 
-export type AppType = typeof app 
+export default app 

@@ -1,43 +1,27 @@
-import { useSearch } from '@tanstack/react-router'
-import type { 
-  ClientRoutes, 
-  SearchParams 
-} from '@admin-cloudflare/api-types'
-import { z } from 'zod'
+import { useSearch, useRouter } from '@tanstack/react-router'
+import { useCallback } from 'react'
 
-/**
- * Creates a type-safe hook for handling search params for a specific route
- * @param routeId The route ID to get search params from
- * @param schema Zod schema for validating search params
- * @returns Validated search params and error state
- */
-export const useTypeSafeSearch = <T extends keyof ClientRoutes>(
-  routeId: string,
-  schema: z.ZodType<SearchParams<T>>
-) => {
-  const search = useSearch({ from: routeId })
-  
-  try {
-    const validatedSearch = schema.parse(search)
-    return {
-      search: validatedSearch as SearchParams<T>,
-      error: null,
-      isValid: true
-    }
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return {
-        search: {} as SearchParams<T>,
-        error: error.format(),
-        isValid: false
-      }
-    }
-    return {
-      search: {} as SearchParams<T>,
-      error: 'Invalid search params',
-      isValid: false
-    }
-  }
+export function useSearchParams() {
+  const router = useRouter()
+  const search = useSearch({ from: '__root__' })
+
+  const getParam = useCallback((key: string) => {
+    return (search as Record<string, string | undefined>)[key]
+  }, [search])
+
+  const setParam = useCallback((key: string, value: string | undefined) => {
+    router.navigate({
+      search: value 
+        ? { ...router.state.resolvedLocation.search, [key]: value }
+        : Object.fromEntries(
+            Object.entries(router.state.resolvedLocation.search).filter(
+              ([k]) => k !== key
+            )
+          ),
+    })
+  }, [router])
+
+  return { getParam, setParam }
 }
 
 /**

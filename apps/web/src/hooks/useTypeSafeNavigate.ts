@@ -2,8 +2,7 @@ import { useNavigate as useRouterNavigate } from '@tanstack/react-router'
 import type { 
   ClientRoutes, 
   NavigateOptions, 
-  RouteParams, 
-  SearchParams 
+  RouteParams
 } from '@admin-cloudflare/api-types'
 
 /**

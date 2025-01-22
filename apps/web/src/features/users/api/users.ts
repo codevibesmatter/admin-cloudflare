@@ -9,14 +9,6 @@ export const userKeys = {
   details: (id: string) => [...userKeys.all, 'detail', id] as const,
 }
 
-type ExtendedGetUsersResponse = GetUsersResponse & {
-  meta: {
-    timestamp: string;
-    hasNextPage: boolean;
-    offset: number;
-  }
-}
-
 export function useUsers(
   limit = 50,
   sortField?: string,
@@ -24,30 +16,24 @@ export function useUsers(
 ) {
   const api = useApi()
   
-  return useInfiniteQuery<ExtendedGetUsersResponse>({
+  return useInfiniteQuery<GetUsersResponse>({
     queryKey: [...userKeys.lists(), { sortField, sortOrder }],
     queryFn: async ({ pageParam }) => {
-      const offset = typeof pageParam === 'number' ? pageParam * limit : 0
+      const cursor = typeof pageParam === 'string' ? pageParam : undefined
       const response = await api.users.list({
-        offset,
+        cursor,
         limit,
         sortField,
         sortOrder,
       })
-      return {
-        ...response,
-        meta: {
-          ...response.meta,
-          hasNextPage: response.data.users.length === limit,
-          offset,
-        }
-      } satisfies ExtendedGetUsersResponse
+      return response
     },
-    getNextPageParam: (lastPage, allPages) => {
-      if (!lastPage.meta.hasNextPage) return undefined
-      return allPages.length
+    getNextPageParam: (lastPage) => {
+      const users = lastPage.data.users
+      if (users.length < limit) return undefined
+      return users[users.length - 1].id
     },
-    initialPageParam: 0
+    initialPageParam: undefined
   })
 }
 
@@ -56,7 +42,7 @@ export function useCreateUser() {
   const api = useApi()
   
   return useMutation({
-    mutationFn: (data: UserCreate) => api.users.create(data),
+    mutationFn: (data: UserCreate) => api.users.create({ ...data, status: 'invited' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: userKeys.lists() })
     }

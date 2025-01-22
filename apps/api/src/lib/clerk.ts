@@ -1,117 +1,73 @@
-import type { User } from '../db/schema/users'
-import { generateId } from './utils'
-import { getCurrentTimestamp } from '../db/utils'
-import type { HonoContext } from '../types'
-import { createDatabase } from '../db/config'
+import { getAuth } from '@hono/clerk-auth'
+import { eq } from 'drizzle-orm'
+import { users } from '../db/schema/users'
+import type { AppBindings } from '../types'
+import type { Context } from 'hono'
 
-export interface ClerkWebhookEvent {
-  data: {
-    id: string
-    first_name?: string
-    last_name?: string
-    email_addresses?: Array<{
-      email_address: string
-      id: string
-    }>
-    created_at: number
-    updated_at: number
-    public_metadata?: Record<string, unknown>
-  }
-  object: 'event'
-  type: string
-}
+export class ClerkService {
+  private env: AppBindings
+  private context: Context
 
-function rowToUser(row: Record<string, any>): User {
-  return {
-    id: row.id,
-    clerkId: row.clerk_id,
-    email: row.email,
-    firstName: row.first_name,
-    lastName: row.last_name,
-    imageUrl: row.image_url,
-    role: row.role,
-    status: row.status,
-    syncStatus: row.sync_status,
-    lastSyncAttempt: row.last_sync_attempt,
-    syncError: row.sync_error,
-    metadata: row.metadata,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  }
-}
-
-export async function syncUser(
-  context: HonoContext,
-  event: ClerkWebhookEvent
-): Promise<User> {
-  const data = event.data
-  const email = data.email_addresses?.[0]?.email_address
-
-  if (!email) {
-    throw new Error('User has no email address')
+  constructor(env: AppBindings, context: Context) {
+    this.env = env
+    this.context = context
   }
 
-  const db = await createDatabase(context)
+  async syncUser(clerkId: string) {
+    const clerkClient = this.context.get('clerk')
+    const user = await clerkClient.users.getUser(clerkId)
+    
+    if (!user) {
+      throw new Error(`User not found in Clerk: ${clerkId}`)
+    }
 
-  // Check if user exists
-  const existingResult = await db.execute({
-    sql: 'SELECT * FROM users WHERE clerk_id = ? LIMIT 1',
-    args: [data.id]
-  })
-  const existingUser = existingResult.rows[0] ? rowToUser(existingResult.rows[0] as Record<string, any>) : undefined
+    const { id, firstName, lastName, emailAddresses } = user
+    const email = emailAddresses[0]?.emailAddress
 
-  if (existingUser) {
-    // Update user
-    const result = await db.execute({
-      sql: `
-        UPDATE users 
-        SET 
-          first_name = ?,
-          last_name = ?,
-          email = ?,
-          sync_status = 'synced',
-          last_sync_attempt = ?,
-          updated_at = ?
-        WHERE id = ?
-        RETURNING *
-      `,
-      args: [
-        data.first_name || existingUser.firstName,
-        data.last_name || existingUser.lastName,
+    if (!email) {
+      throw new Error(`User has no email address: ${clerkId}`)
+    }
+
+    // Check if user exists
+    const existingUser = await this.env.db
+      .select()
+      .from(users)
+      .where(eq(users.clerkId, clerkId))
+      .get()
+
+    if (existingUser) {
+      // Update user
+      await this.env.db
+        .update(users)
+        .set({
+          firstName: firstName || '',
+          lastName: lastName || '',
+          email,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(users.clerkId, clerkId))
+        .run()
+
+      return existingUser
+    }
+
+    // Create user
+    const newUser = await this.env.db
+      .insert(users)
+      .values({
+        id: id,
+        clerkId: clerkId,
+        firstName: firstName || '',
+        lastName: lastName || '',
         email,
-        getCurrentTimestamp(),
-        getCurrentTimestamp(),
-        existingUser.id
-      ]
-    })
+        role: 'admin',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+      .returning()
+      .get()
 
-    return rowToUser(result.rows[0] as Record<string, any>)
+    return newUser
   }
-
-  // Create new user
-  const result = await db.execute({
-    sql: `
-      INSERT INTO users (
-        id, clerk_id, first_name, last_name, email,
-        role, status, sync_status, last_sync_attempt,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      RETURNING *
-    `,
-    args: [
-      generateId(),
-      data.id,
-      data.first_name || '',
-      data.last_name || '',
-      email,
-      'cashier',
-      'active',
-      'synced',
-      getCurrentTimestamp(),
-      getCurrentTimestamp(),
-      getCurrentTimestamp()
-    ]
-  })
-
-  return rowToUser(result.rows[0] as Record<string, any>)
 } 

@@ -25,7 +25,8 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { SelectDropdown } from '@/components/select-dropdown'
 import { userTypes } from '../data/data'
-import { User, userRoleSchema } from '../data/schema'
+import type { User } from '@admin-cloudflare/api-types'
+import { userRoleSchema, userStatusSchema } from '@admin-cloudflare/api-types'
 import { useCreateUser, useUpdateUser } from '../api/users'
 
 const formSchema = z
@@ -33,7 +34,8 @@ const formSchema = z
     email: z.string().email({ message: 'Invalid email address.' }),
     firstName: z.string().min(1, { message: 'First name is required.' }),
     lastName: z.string().min(1, { message: 'Last name is required.' }),
-    role: userRoleSchema
+    role: userRoleSchema,
+    status: userStatusSchema
   })
 type UserForm = z.infer<typeof formSchema>
 
@@ -58,7 +60,8 @@ export function UsersActionDialog({ currentRow, open, onOpenChange }: Props) {
           email: '',
           firstName: '',
           lastName: '',
-          role: 'cashier'
+          role: 'cashier',
+          status: 'invited'
         },
   })
 
@@ -197,6 +200,7 @@ export function UsersActionDialog({ currentRow, open, onOpenChange }: Props) {
                   </FormItem>
                 )}
               />
+              <input type="hidden" {...form.register('status')} />
             </form>
           </Form>
         </ScrollArea>

@@ -1,24 +1,48 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
-import type { Context } from 'hono'
 import { z } from 'zod'
-import { requireOrganizationRole } from '../middleware/organization'
-import { generateId } from '../lib/utils'
-import { getCurrentTimestamp } from '../db/utils'
 import type { AppContext } from '../types'
-import { notFound } from '../middleware/error'
-import { syncUser } from '../lib/clerk'
-import type { ClerkWebhookEvent } from '../lib/clerk'
-import { UserService } from '../db/services'
-import type { CreateUserInput, UpdateUserInput } from '../db/services/users'
-import { selectUserSchema, insertUserSchema, updateUserSchema } from '../db/schema/users'
-import { errorSchema, errorResponses } from '../schemas/errors'
+import { errorResponses } from '../schemas/errors'
 import { createRoute } from '@hono/zod-openapi'
+import { ClerkService } from '../lib/clerk'
+import { UserService } from '../services/user'
+import { generateId } from '../lib/utils'
+import { notFound } from '../middleware/error'
+import { users } from '../db/schema/users'
 
 const app = new OpenAPIHono<AppContext>()
 
+// User schemas
+export const userSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  imageUrl: z.string().optional(),
+  firstName: z.string(),
+  lastName: z.string(),
+  clerkId: z.string(),
+  email: z.string(),
+  role: z.enum(['superadmin', 'admin', 'manager', 'cashier']),
+  status: z.enum(['active', 'inactive', 'invited', 'suspended']),
+  metadata: z.string().optional()
+})
+
+export type User = z.infer<typeof userSchema>
+
+export const createUserSchema = userSchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+})
+
+export type CreateUserInput = z.infer<typeof createUserSchema>
+
+export const updateUserSchema = createUserSchema.partial()
+
+export type UpdateUserInput = z.infer<typeof updateUserSchema>
+
 // Response schemas
 const listUsersResponseSchema = z.object({
-  users: z.array(selectUserSchema),
+  users: z.array(userSchema),
   total: z.number()
 }).openapi('ListUsersResponse')
 
@@ -90,7 +114,7 @@ const createUserRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: insertUserSchema
+          schema: createUserSchema
         }
       }
     }
@@ -99,7 +123,7 @@ const createUserRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: selectUserSchema
+          schema: userSchema
         }
       },
       description: 'User created successfully'
@@ -121,7 +145,7 @@ const getUserRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: selectUserSchema
+          schema: userSchema
         }
       },
       description: 'User found'
@@ -150,7 +174,7 @@ const updateUserRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: selectUserSchema
+          schema: userSchema
         }
       },
       description: 'User updated successfully'
@@ -184,7 +208,19 @@ const deleteUserRoute = createRoute({
 // Clerk sync schemas
 const syncUserResponseSchema = z.object({
   success: z.boolean(),
-  user: selectUserSchema
+  user: z.object({
+    id: z.string(),
+    clerkId: z.string().nullable(),
+    email: z.string(),
+    firstName: z.string(),
+    lastName: z.string(),
+    imageUrl: z.string().nullable(),
+    role: z.enum(['superadmin', 'admin', 'manager', 'cashier']),
+    status: z.enum(['active', 'inactive', 'invited', 'suspended']),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    metadata: z.string().nullable()
+  })
 }).openapi('SyncUserResponse')
 
 const clerkWebhookSchema = z.object({
@@ -202,12 +238,14 @@ const clerkWebhookSchema = z.object({
 // Clerk sync route definitions
 const syncUserRoute = createRoute({
   method: 'post',
-  path: '/{id}/sync-clerk',
+  path: '/:id/sync-clerk',
   tags: ['Users'],
   summary: 'Sync user with Clerk',
-  description: 'Synchronize user data with Clerk authentication service',
+  description: 'Sync user data with Clerk',
   request: {
-    params: userIdParamSchema
+    params: z.object({
+      id: z.string()
+    })
   },
   responses: {
     200: {
@@ -216,7 +254,7 @@ const syncUserRoute = createRoute({
           schema: syncUserResponseSchema
         }
       },
-      description: 'User synchronized successfully'
+      description: 'User synced successfully'
     },
     ...errorResponses
   }
@@ -226,8 +264,8 @@ const syncFromClerkRoute = createRoute({
   method: 'post',
   path: '/sync-from-clerk',
   tags: ['Users'],
-  summary: 'Sync from Clerk webhook',
-  description: 'Handle Clerk webhook events to sync user data',
+  summary: 'Sync user from Clerk',
+  description: 'Sync user data from Clerk webhook',
   request: {
     body: {
       content: {
@@ -238,13 +276,13 @@ const syncFromClerkRoute = createRoute({
     }
   },
   responses: {
-    200: {
+    201: {
+      description: 'User synchronized successfully',
       content: {
         'application/json': {
           schema: syncUserResponseSchema
         }
-      },
-      description: 'User synchronized successfully'
+      }
     },
     ...errorResponses
   }
@@ -253,46 +291,18 @@ const syncFromClerkRoute = createRoute({
 // Clerk sync route handlers
 app.openapi(syncUserRoute, async (c) => {
   const { id } = c.req.valid('param')
-  const userService = new UserService({ 
-    context: c, 
-    logger: c.env.logger
-  })
-  const user = await userService.getUserById(id)
-  if (!user) {
-    throw notFound('User')
-  }
-  
-  const clerkEvent: ClerkWebhookEvent = {
-    data: {
-      id: user.clerkId || '',
-      first_name: user.firstName,
-      last_name: user.lastName,
-      email_addresses: [{
-        email_address: user.email,
-        id: generateId()
-      }],
-      created_at: Date.parse(user.createdAt),
-      updated_at: Date.parse(user.updatedAt)
-    },
-    object: 'event',
-    type: 'user.updated'
-  }
-  
-  const updatedUser = await syncUser(c, clerkEvent)
-  return c.json({ 
-    success: true,
-    user: updatedUser
-  })
+  const clerkService = new ClerkService(c.env, c)
+  const user = await clerkService.syncUser(id)
+  return c.json({ success: true, user })
 })
 
 app.openapi(syncFromClerkRoute, async (c) => {
-  const data = c.req.valid('json')
+  const { data: clerkUser } = c.req.valid('json')
   const userService = new UserService({ 
     context: c, 
     logger: c.env.logger
   })
   
-  const clerkUser = data.data
   const existingUser = await userService.getUserByClerkId(clerkUser.id)
   
   if (existingUser) {
@@ -300,12 +310,27 @@ app.openapi(syncFromClerkRoute, async (c) => {
       email: clerkUser.email_addresses[0]?.email_address,
       firstName: clerkUser.first_name,
       lastName: clerkUser.last_name,
-      imageUrl: clerkUser.image_url
+      imageUrl: clerkUser.image_url || undefined
     })
+    if (!updatedUser) {
+      return notFound('User')
+    }
     return c.json({ 
       success: true,
-      user: updatedUser
-    })
+      user: {
+        id: updatedUser.id,
+        clerkId: updatedUser.clerkId,
+        email: updatedUser.email,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        imageUrl: updatedUser.imageUrl || null,
+        role: updatedUser.role,
+        status: updatedUser.status,
+        createdAt: updatedUser.createdAt,
+        updatedAt: updatedUser.updatedAt,
+        metadata: updatedUser.metadata || null
+      }
+    }, 201)
   }
   
   const newUser = await userService.createUser({
@@ -313,26 +338,47 @@ app.openapi(syncFromClerkRoute, async (c) => {
     email: clerkUser.email_addresses[0]?.email_address,
     firstName: clerkUser.first_name,
     lastName: clerkUser.last_name,
-    imageUrl: clerkUser.image_url
-  } as CreateUserInput)
+    imageUrl: clerkUser.image_url || undefined,
+    role: 'cashier',
+    status: 'active'
+  })
   
   return c.json({ 
     success: true,
-    user: newUser
-  })
+    user: {
+      id: newUser.id,
+      clerkId: newUser.clerkId,
+      email: newUser.email,
+      firstName: newUser.firstName,
+      lastName: newUser.lastName,
+      imageUrl: newUser.imageUrl || null,
+      role: newUser.role,
+      status: newUser.status,
+      createdAt: newUser.createdAt,
+      updatedAt: newUser.updatedAt,
+      metadata: newUser.metadata || null
+    }
+  }, 201)
 })
 
 // Route handlers
 app.openapi(listUsersRoute, async (c) => {
-  const query = c.req.valid('query')
+  const { limit, cursor } = c.req.query()
   const userService = new UserService({ 
     context: c, 
     logger: c.env.logger
   })
-  const users = await userService.getUsers()
+  const { users, total } = await userService.listUsers({ 
+    limit: limit ? Number(limit) : undefined, 
+    cursor 
+  })
   return c.json({ 
-    users,
-    total: users.length
+    users: users.map(user => ({
+      ...user,
+      imageUrl: user.imageUrl || undefined,
+      metadata: user.metadata || undefined
+    })),
+    total 
   })
 })
 
@@ -342,11 +388,12 @@ app.openapi(createUserRoute, async (c) => {
     context: c, 
     logger: c.env.logger
   })
-  const user = await userService.createUser({
-    ...data,
-    clerkId: generateId()
-  } as CreateUserInput)
-  return c.json(user, 201)
+  const user = await userService.createUser(data)
+  return c.json({
+    ...user,
+    imageUrl: user.imageUrl || undefined,
+    metadata: user.metadata || undefined
+  }, 201)
 })
 
 app.openapi(getUserRoute, async (c) => {
@@ -355,11 +402,15 @@ app.openapi(getUserRoute, async (c) => {
     context: c, 
     logger: c.env.logger
   })
-  const user = await userService.getUserById(id)
+  const user = await userService.getUser(id)
   if (!user) {
-    throw notFound('User')
+    return notFound('User')
   }
-  return c.json(user)
+  return c.json({
+    ...user,
+    imageUrl: user.imageUrl || undefined,
+    metadata: user.metadata || undefined
+  })
 })
 
 app.openapi(updateUserRoute, async (c) => {
@@ -369,8 +420,15 @@ app.openapi(updateUserRoute, async (c) => {
     context: c, 
     logger: c.env.logger
   })
-  const user = await userService.updateUser(id, data as UpdateUserInput)
-  return c.json(user)
+  const user = await userService.updateUser(id, data)
+  if (!user) {
+    return notFound('User')
+  }
+  return c.json({
+    ...user,
+    imageUrl: user.imageUrl || undefined,
+    metadata: user.metadata || undefined
+  })
 })
 
 app.openapi(deleteUserRoute, async (c) => {

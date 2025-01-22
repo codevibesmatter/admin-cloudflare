@@ -1,26 +1,28 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { z } from 'zod'
-import { UserSyncService, OrganizationSync } from '../../sync'
 import type { AppContext } from '../../types'
-import { errorResponses } from '../../schemas/errors'
+import { ClerkService } from '../../lib/clerk'
+import { UserService } from '../../services/user'
 import { createRoute } from '@hono/zod-openapi'
-import { badRequest } from '../../middleware/error'
-import { webhookEventSchema, userEventSchema, organizationEventSchema, membershipEventSchema } from '@admin-cloudflare/api-types'
 
 const app = new OpenAPIHono<AppContext>()
 
-// Response schemas
-const webhookResponseSchema = z.object({
-  success: z.boolean()
-}).openapi('WebhookResponse')
+const webhookEventSchema = z.object({
+  type: z.string(),
+  data: z.object({
+    id: z.string(),
+    email_addresses: z.array(z.object({
+      email_address: z.string()
+    })),
+    first_name: z.string(),
+    last_name: z.string(),
+    image_url: z.string().optional()
+  })
+})
 
-// Route definition
 const webhookRoute = createRoute({
   method: 'post',
-  path: '/',
-  tags: ['Webhooks'],
-  summary: 'Handle Clerk webhook',
-  description: 'Handle webhook events from Clerk',
+  path: '/clerk',
   request: {
     body: {
       content: {
@@ -32,94 +34,44 @@ const webhookRoute = createRoute({
   },
   responses: {
     200: {
+      description: 'Webhook processed successfully',
       content: {
         'application/json': {
-          schema: webhookResponseSchema
+          schema: z.object({
+            success: z.boolean()
+          })
         }
-      },
-      description: 'Webhook processed successfully'
+      }
     },
-    ...errorResponses
+    400: {
+      description: 'Invalid webhook event',
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.boolean()
+          })
+        }
+      }
+    }
   }
 })
 
-// Route handler
 app.openapi(webhookRoute, async (c) => {
-  const event = webhookEventSchema.parse(c.req.valid('json'))
-  const userSync = new UserSyncService({ context: c })
-  const orgSync = new OrganizationSync({ context: c, logger: c.env.logger })
-
-  // Handle user events
-  if (event.type.startsWith('user.')) {
-    const result = userEventSchema.safeParse(event)
-    if (!result.success) {
-      throw badRequest('Invalid user event format')
-    }
-    const userEvent = result.data
-
-    switch (userEvent.type) {
-      case 'user.created':
-        await userSync.handleUserCreated(userEvent)
-        break
-      case 'user.updated':
-        await userSync.handleUserUpdated(userEvent)
-        break
-      case 'user.deleted':
-        await userSync.handleUserDeleted(userEvent)
-        break
-    }
-  } 
-  // Handle organization events
-  else if (event.type.startsWith('organization.')) {
-    const result = organizationEventSchema.safeParse(event)
-    if (!result.success) {
-      throw badRequest('Invalid organization event format')
-    }
-    const orgEvent = result.data
-
-    switch (orgEvent.type) {
-      case 'organization.created':
-      case 'organization.updated': {
-        const { id, name, slug } = orgEvent.data
-        if (!name || !slug) {
-          throw badRequest('Missing required organization fields')
-        }
-        const transformedEvent = {
-          type: orgEvent.type,
-          data: { id, name, slug }
-        }
-        if (orgEvent.type === 'organization.created') {
-          await orgSync.handleOrganizationCreated(transformedEvent)
-        } else {
-          await orgSync.handleOrganizationUpdated(transformedEvent)
-        }
-        break
-      }
-      case 'organization.deleted': {
-        const { id } = orgEvent.data
-        const transformedEvent = {
-          type: 'organization.deleted' as const,
-          data: { id }
-        }
-        await orgSync.handleOrganizationDeleted(transformedEvent)
-        break
-      }
-    }
-  } 
-  // Handle membership events
-  else if (event.type.startsWith('organizationMembership.')) {
-    const result = membershipEventSchema.safeParse(event)
-    if (!result.success) {
-      throw badRequest('Invalid membership event format')
-    }
-    const membershipEvent = result.data
-    await orgSync.handleMembershipChanged(membershipEvent)
-  } 
-  else {
-    throw badRequest('Unsupported webhook event type')
+  const data = c.req.valid('json')
+  const userService = new UserService({ context: c, logger: c.env.logger })
+  const clerkService = new ClerkService(c.env, c)
+  
+  switch (data.type) {
+    case 'user.created':
+    case 'user.updated':
+      await clerkService.syncUser(data.data.id)
+      break
+    default:
+      c.env.logger.warn('Unhandled event type', { type: data.type })
   }
-
-  return c.json({ success: true })
+  
+  return c.json({ success: true }, 200)
 })
 
+export type WebhooksType = typeof app
 export default app 

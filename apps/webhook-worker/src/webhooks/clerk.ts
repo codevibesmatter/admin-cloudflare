@@ -7,11 +7,9 @@ import { createErrorResponse } from '../lib/responses'
 import { validateTimestamp, validateRequiredHeaders } from '../lib/validation'
 import { 
   webhookEventSchema, 
-  userEventSchema, 
-  organizationEventSchema,
+  userEventSchema,
   type WebhookEvent,
   type UserEvent,
-  type OrganizationEvent 
 } from '@admin-cloudflare/api-types'
 import { RateLimit } from '../lib/rate-limit'
 
@@ -23,7 +21,31 @@ setInterval(() => rateLimit.cleanup(), 5 * 60 * 1000)
 
 const app = new Hono<{ Bindings: Env }>()
 
-app.post('/', async (c) => {
+app.post('/webhooks/clerk', async (c) => {
+  try {
+    const event = await validateWebhook(c)
+    const parsedEvent = webhookEventSchema.parse(event)
+
+    switch (parsedEvent.type) {
+      case 'user.created':
+      case 'user.updated':
+      case 'user.deleted': {
+        const userEvent = userEventSchema.parse(event)
+        await handleUserEvent(userEvent, c.env)
+        break
+      }
+      default: {
+        logger.warn('Unhandled event type', { type: parsedEvent.type })
+      }
+    }
+
+    return c.json({ success: true })
+  } catch (error) {
+    return handleWebhookError(error)
+  }
+})
+
+async function validateWebhook(c: any) {
   // Get and validate required headers
   const headers: WebhookHeaders = {
     'svix-id': c.req.header('svix-id') ?? null,
@@ -37,7 +59,7 @@ app.post('/', async (c) => {
       hasTimestamp: !!headers['svix-timestamp'],
       hasSignature: !!headers['svix-signature']
     })
-    return createErrorResponse(400, 'Missing required headers')
+    throw new Error('Missing required headers')
   }
 
   const svixId = headers['svix-id']!
@@ -47,88 +69,45 @@ app.post('/', async (c) => {
   // Rate limiting
   if (!rateLimit.isAllowed(svixId)) {
     logger.warn('Rate limit exceeded', { svixId })
-    return createErrorResponse(429, 'Too many requests')
+    throw new Error('Too many requests')
   }
 
   // Validate timestamp
   if (!validateTimestamp(svixTimestamp)) {
     logger.error('Invalid webhook timestamp', { svixId, timestamp: svixTimestamp })
-    return createErrorResponse(400, 'Invalid timestamp')
+    throw new Error('Invalid timestamp')
   }
 
+  // Get and verify raw body
+  const rawBody = await c.req.text()
+  
   try {
-    // Get and verify raw body
-    const rawBody = await c.req.text()
-    
-    try {
-      // Verify webhook signature using Svix
-      const wh = new Webhook(c.env.CLERK_WEBHOOK_SECRET)
-      await wh.verify(rawBody, {
-        'svix-id': svixId,
-        'svix-timestamp': svixTimestamp,
-        'svix-signature': svixSignature || ''
-      })
-    } catch (err) {
-      logger.error('Invalid webhook signature', { svixId, error: err })
-      return createErrorResponse(401, 'Invalid signature')
-    }
-
-    // Parse and validate payload
-    const payload = JSON.parse(rawBody)
-    const result = webhookEventSchema.safeParse(payload)
-    
-    if (!result.success) {
-      logger.error('Invalid webhook payload', {
-        svixId,
-        errors: result.error.errors
-      })
-      return createErrorResponse(400, 'Invalid payload', {
-        errors: result.error.errors
-      })
-    }
-
-    const event = result.data
-
-    // Type-safe event handling
-    switch (event.type) {
-      case 'user.created':
-      case 'user.updated':
-      case 'user.deleted': {
-        const userEvent = userEventSchema.parse(event)
-        await handleUserEvent(userEvent, c.env)
-        break
-      }
-      case 'organization.created':
-      case 'organization.updated':
-      case 'organization.deleted': {
-        const orgEvent = organizationEventSchema.parse(event)
-        await handleOrganizationEvent(orgEvent, c.env)
-        break
-      }
-      default: {
-        logger.warn('Unhandled event type', { 
-          svixId,
-          type: event.type
-        })
-        return new Response('OK', { status: 200 })
-      }
-    }
-
-    logger.info('Successfully processed webhook', {
-      svixId,
-      type: event.type
+    // Verify webhook signature using Svix
+    const wh = new Webhook(c.env.CLERK_WEBHOOK_SECRET)
+    await wh.verify(rawBody, {
+      'svix-id': svixId,
+      'svix-timestamp': svixTimestamp,
+      'svix-signature': svixSignature || ''
     })
-
-    return new Response('OK', { status: 200 })
-  } catch (error) {
-    logger.error('Webhook processing failed', {
-      svixId,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
-    })
-    return createErrorResponse(500, 'Internal server error')
+  } catch (err) {
+    logger.error('Invalid webhook signature', { svixId, error: err })
+    throw new Error('Invalid signature')
   }
-})
+
+  // Parse and validate payload
+  const payload = JSON.parse(rawBody)
+  const result = webhookEventSchema.safeParse(payload)
+  
+  if (!result.success) {
+    logger.error('Invalid webhook payload', {
+      svixId,
+      errors: result.error.errors
+    })
+    throw new Error('Invalid payload')
+  }
+
+  return result.data
+}
 
 async function handleUserEvent(event: UserEvent, env: Env) {
   const response = await fetch(`${env.API_URL}/api/webhooks/clerk/users`, {
@@ -146,20 +125,12 @@ async function handleUserEvent(event: UserEvent, env: Env) {
   }
 }
 
-async function handleOrganizationEvent(event: OrganizationEvent, env: Env) {
-  const response = await fetch(`${env.API_URL}/api/webhooks/clerk/organizations`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${env.API_SECRET}`
-    },
-    body: JSON.stringify(event)
+function handleWebhookError(error: any) {
+  logger.error('Webhook processing failed', {
+    error: error instanceof Error ? error.message : 'Unknown error',
+    stack: error instanceof Error ? error.stack : undefined
   })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`API responded with status ${response.status}: ${errorText}`)
-  }
+  return createErrorResponse(500, 'Internal server error')
 }
 
 export const clerkWebhook = app 

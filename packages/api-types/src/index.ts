@@ -4,26 +4,16 @@ import type { D1Database } from '@cloudflare/workers-types'
 import {
   webhookEventSchema,
   userEventSchema,
-  organizationEventSchema,
-  membershipEventSchema,
   type WebhookEvent,
   type UserEvent,
-  type OrganizationEvent,
-  type MembershipEvent
 } from './webhooks'
 import {
   type User,
-  type Organization,
   type GetUsersResponse,
-  type GetOrganizationsResponse,
   type UserCreate,
   type UserUpdate,
-  type OrganizationCreate,
-  type OrganizationUpdate,
   userCreateSchema,
   userUpdateSchema,
-  organizationCreateSchema,
-  organizationUpdateSchema
 } from './types'
 
 // Export error types
@@ -50,12 +40,8 @@ export {
 export {
   webhookEventSchema,
   userEventSchema,
-  organizationEventSchema,
-  membershipEventSchema,
   type WebhookEvent,
   type UserEvent,
-  type OrganizationEvent,
-  type MembershipEvent
 } from './webhooks'
 
 // Export route types
@@ -103,33 +89,6 @@ export type Routes = {
   }
   '/users/sync-from-clerk': {
     post: {
-      response: { success: true }
-    }
-  }
-  '/organizations': {
-    get: {
-      response: GetOrganizationsResponse
-    }
-    post: {
-      request: OrganizationCreate
-      response: Organization
-    }
-  }
-  '/organizations/:organizationId': {
-    get: {
-      response: Organization
-    }
-    patch: {
-      request: OrganizationUpdate
-      response: Organization
-    }
-    delete: {
-      response: { success: true }
-    }
-  }
-  '/organizations/set-active': {
-    post: {
-      request: { organizationId: string }
       response: { success: true }
     }
   }

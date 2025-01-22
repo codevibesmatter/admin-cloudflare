@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { User, Organization } from './types'
+import type { User } from './types'
 
 // Client Route Types
 export type ClientRoutes = {
@@ -15,19 +15,6 @@ export type ClientRoutes = {
     }
     searchParams: {
       tab?: 'profile' | 'settings'
-    }
-  }
-  '/organizations': {
-    searchParams: {
-      status?: 'active' | 'inactive'
-    }
-  }
-  '/organizations/:organizationId': {
-    params: {
-      organizationId: string
-    }
-    searchParams: {
-      tab?: 'general' | 'members' | 'settings'
     }
   }
 } 
@@ -86,7 +73,4 @@ export type ExampleRoutes = {
   // Users routes
   users: ReturnType<typeof createTypeSafeRoute<'/users'>>
   userDetails: ReturnType<typeof createTypeSafeRoute<'/users/:id'>>
-  // Organization routes
-  organizations: ReturnType<typeof createTypeSafeRoute<'/organizations'>>
-  organizationDetails: ReturnType<typeof createTypeSafeRoute<'/organizations/:organizationId'>>
 } 

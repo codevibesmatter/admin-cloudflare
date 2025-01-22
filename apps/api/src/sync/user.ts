@@ -4,6 +4,11 @@ import type { SyncConfig, SyncState } from './types'
 import { ValidationError, NonRetryableError } from './types'
 import { UserService } from '../db/services/users'
 import type { UserRoleType, UserStatusType, SyncStatusType } from '../db/schema/users'
+import type { UserEvent } from '@admin-cloudflare/api-types'
+import type { Env, AppBindings } from '../types'
+import { logger } from '../lib/logger'
+import { ClerkService } from '../lib/clerk'
+import type { Context } from 'hono'
 
 export type UserStatus = 'active' | 'inactive' | 'invited' | 'suspended' | 'deleted'
 
@@ -226,5 +231,47 @@ export class UserSyncService extends BaseSyncService {
 
     // Email is optional in Clerk
     return true
+  }
+}
+
+export async function handleUserEvent(event: UserEvent, env: AppBindings) {
+  const context = {
+    get: (key: string) => {
+      if (key === 'clerk') {
+        return {
+          users: {
+            getUser: async (id: string) => {
+              // Mock implementation for webhook context
+              return {
+                id,
+                firstName: '',
+                lastName: '',
+                emailAddresses: []
+              }
+            }
+          }
+        }
+      }
+      return undefined
+    }
+  } as Context
+
+  const clerkService = new ClerkService(env, context)
+
+  switch (event.type) {
+    case 'user.created': {
+      await clerkService.syncUser(event.data.id)
+      logger.info('User created', { userId: event.data.id })
+      break
+    }
+    case 'user.updated': {
+      await clerkService.syncUser(event.data.id)
+      logger.info('User updated', { userId: event.data.id })
+      break
+    }
+    case 'user.deleted': {
+      logger.info('User deleted', { userId: event.data.id })
+      break
+    }
   }
 } 

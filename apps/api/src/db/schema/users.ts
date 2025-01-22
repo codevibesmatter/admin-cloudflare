@@ -33,7 +33,7 @@ export type SyncStatusType = typeof SyncStatus[keyof typeof SyncStatus]
 // Users table
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
-  clerkId: text('clerk_id').unique(),
+  clerkId: text('clerk_id').notNull().unique(),
   email: text('email').notNull(),
   firstName: text('first_name').notNull(),
   lastName: text('last_name').notNull(),
