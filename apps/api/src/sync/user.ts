@@ -234,44 +234,10 @@ export class UserSyncService extends BaseSyncService {
   }
 }
 
-export async function handleUserEvent(event: UserEvent, env: AppBindings) {
-  const context = {
-    get: (key: string) => {
-      if (key === 'clerk') {
-        return {
-          users: {
-            getUser: async (id: string) => {
-              // Mock implementation for webhook context
-              return {
-                id,
-                firstName: '',
-                lastName: '',
-                emailAddresses: []
-              }
-            }
-          }
-        }
-      }
-      return undefined
-    }
-  } as Context
-
-  const clerkService = new ClerkService(env, context)
-
-  switch (event.type) {
-    case 'user.created': {
-      await clerkService.syncUser(event.data.id)
-      logger.info('User created', { userId: event.data.id })
-      break
-    }
-    case 'user.updated': {
-      await clerkService.syncUser(event.data.id)
-      logger.info('User updated', { userId: event.data.id })
-      break
-    }
-    case 'user.deleted': {
-      logger.info('User deleted', { userId: event.data.id })
-      break
-    }
-  }
+export async function handleUserEvent(event: UserEvent) {
+  logger.info('Received user event', {
+    type: event.type,
+    userId: event.data.id,
+    data: event.data
+  })
 } 

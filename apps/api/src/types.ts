@@ -1,7 +1,8 @@
 import type { Context } from 'hono'
-import type { Logger } from './lib/logger'
+import type { Logger } from 'pino'
 import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import { members, organizations } from './db/schema/index'
+import type { Database } from './db/config'
 
 // Environment bindings for Hono
 export interface Bindings {
@@ -25,7 +26,7 @@ export interface Bindings {
 
 // Runtime bindings
 export interface AppBindings extends Bindings {
-  db: LibSQLDatabase<{ members: typeof members, organizations: typeof organizations }>
+  db: Database
   logger: Logger
 }
 
@@ -35,6 +36,9 @@ export interface Variables {
   organizationId?: string
   organizationRole?: string
   organizationContext?: OrganizationContext
+  user?: {
+    id: string
+  }
 }
 
 // Organization context type

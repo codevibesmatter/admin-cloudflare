@@ -2,7 +2,7 @@ import type { Logger } from '../../lib/logger'
 import type { HonoContext } from '../../types'
 import { createDatabase } from '../config'
 import type { LibSQLDatabase } from 'drizzle-orm/libsql'
-import { members, organizations } from '../schema/index'
+import { users } from '../schema/users'
 
 export interface ServiceConfig {
   logger: Logger
@@ -17,7 +17,7 @@ export class DatabaseError extends Error {
 }
 
 export class BaseService {
-  protected db?: LibSQLDatabase<{ members: typeof members, organizations: typeof organizations }>
+  protected db?: LibSQLDatabase<{ users: typeof users }>
   protected logger: Logger
   protected context: HonoContext
 
@@ -28,7 +28,11 @@ export class BaseService {
 
   protected initDb() {
     if (!this.db) {
-      this.db = createDatabase(this.context)
+      const { db } = createDatabase({
+        TURSO_DATABASE_URL: this.context.env.TURSO_DATABASE_URL,
+        TURSO_AUTH_TOKEN: this.context.env.TURSO_AUTH_TOKEN
+      })
+      this.db = db
     }
     return this.db
   }

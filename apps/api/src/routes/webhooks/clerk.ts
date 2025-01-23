@@ -22,7 +22,7 @@ const webhookEventSchema = z.object({
 
 const webhookRoute = createRoute({
   method: 'post',
-  path: '/clerk',
+  path: '/webhooks/clerk',
   request: {
     body: {
       content: {
@@ -48,7 +48,7 @@ const webhookRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            success: z.boolean()
+            error: z.string()
           })
         }
       }

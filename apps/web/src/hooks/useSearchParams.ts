@@ -10,14 +10,19 @@ export function useSearchParams() {
   }, [search])
 
   const setParam = useCallback((key: string, value: string | undefined) => {
+    const currentSearch = router.state.resolvedLocation.search
+    const newSearch = value 
+      ? { ...currentSearch, [key]: value }
+      : Object.fromEntries(
+          Object.entries(currentSearch).filter(
+            ([k]) => k !== key
+          )
+        )
+
     router.navigate({
-      search: value 
-        ? { ...router.state.resolvedLocation.search, [key]: value }
-        : Object.fromEntries(
-            Object.entries(router.state.resolvedLocation.search).filter(
-              ([k]) => k !== key
-            )
-          ),
+      to: router.state.resolvedLocation.pathname,
+      search: true,
+      params: newSearch
     })
   }, [router])
 

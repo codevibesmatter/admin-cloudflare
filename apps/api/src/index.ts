@@ -4,16 +4,14 @@ import { prettyJSON } from 'hono/pretty-json'
 import { secureHeaders } from 'hono/secure-headers'
 import { swaggerUI } from '@hono/swagger-ui'
 import webhooksRouter from './routes/webhooks/clerk'
-import organizationsRouter from './routes/organizations'
+import usersRouter from './routes/users'
 import { errorHandler } from './middleware/error'
 import type { AppBindings, Variables } from './types'
-import pino from 'pino'
-import { loadEnv, createEnv } from './env'
+import { createEnv, loadEnv } from './env'
 import { createDatabase } from './db/config'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { sql } from 'drizzle-orm'
-import { createClient } from '@libsql/client'
-import { members } from './db/schema/index'
+import pino from 'pino'
 
 // Create app with proper typing
 const app = new OpenAPIHono<{ Bindings: AppBindings; Variables: Variables }>()
@@ -30,7 +28,7 @@ app.doc('/api/docs', {
   info: {
     title: 'Admin API',
     version: '1.0.0',
-    description: 'API for managing organizations, users, and webhooks'
+    description: 'API for managing users and webhooks'
   },
   servers: [
     {
@@ -46,63 +44,51 @@ app.get('/api/swagger', swaggerUI({ url: '/api/docs' }) as any)
 // Initialize environment and database
 app.use('*', async (c, next) => {
   try {
-    // Load environment variables from bindings
-    const envVars: Record<string, string | undefined> = {
+    // Configure logger
+    const logger = pino({
+      level: c.env.ENVIRONMENT === 'development' ? 'debug' : 'info',
+      transport: {
+        target: 'pino-pretty'
+      }
+    })
+
+    // Load environment variables
+    const envVars = {
       TURSO_DATABASE_URL: c.env.TURSO_DATABASE_URL,
       TURSO_AUTH_TOKEN: c.env.TURSO_AUTH_TOKEN,
       TURSO_ORG_GROUP: c.env.TURSO_ORG_GROUP,
       TURSO_ORG_TOKEN: c.env.TURSO_ORG_TOKEN,
       CLERK_SECRET_KEY: c.env.CLERK_SECRET_KEY,
       CLERK_WEBHOOK_SECRET: c.env.CLERK_WEBHOOK_SECRET,
-      CLOUDFLARE_API_TOKEN: c.env.CLOUDFLARE_API_TOKEN,
-      CLOUDFLARE_ACCOUNT_ID: c.env.CLOUDFLARE_ACCOUNT_ID,
       ENVIRONMENT: c.env.ENVIRONMENT
     }
-
-    console.log('Environment variables loaded:', {
-      TURSO_DATABASE_URL: envVars.TURSO_DATABASE_URL?.substring(0, 20) + '...',
-      TURSO_AUTH_TOKEN: envVars.TURSO_AUTH_TOKEN?.substring(0, 5) + '...',
-      TURSO_ORG_GROUP: envVars.TURSO_ORG_GROUP,
-      TURSO_ORG_TOKEN: envVars.TURSO_ORG_TOKEN?.substring(0, 5) + '...'
-    })
-
-    const envSchema = loadEnv(envVars)
     
-    // Configure logger
-    const pinoLogger = pino({
-      level: envSchema.ENVIRONMENT === 'development' ? 'debug' : 'info',
-      transport: {
-        target: 'pino-pretty'
-      }
-    })
-
-    // Set environment first
-    const env: AppBindings = {
-      ...envSchema,
-      db: undefined!,
-      logger: pinoLogger
-    }
-    c.env = env
-
-    // Then create database with updated context
-    console.log('Creating database connection with:', {
-      url: c.env.TURSO_DATABASE_URL?.substring(0, 20) + '...',
-      hasAuthToken: !!c.env.TURSO_AUTH_TOKEN
-    })
-    const db = await createDatabase(c)
+    // Load and validate environment
+    const env = loadEnv(envVars)
+    
+    // Create database connection
+    const { db, client } = createDatabase(env)
+    
+    // Test database connection
+    await db.select().from(sql`SELECT 1`).get()
+    
+    // Create full environment with runtime dependencies
+    const fullEnv = createEnv(env, { db: client, logger })
+    
+    // Update context with initialized services
     c.env.db = db
-    console.log('Database connection created')
-
-    await next()
+    c.env.logger = logger
+    
+    return await next()
   } catch (error) {
-    console.error('Failed to initialize environment:', error)
-    throw error
+    console.error('Failed to initialize:', error)
+    return c.json({ error: 'Internal Server Error' }, 500)
   }
 })
 
 // Mount routes
-app.route('/api/organizations', organizationsRouter)
-app.route('/api/webhooks/clerk', webhooksRouter)
+app.route('/api', webhooksRouter)
+app.route('/api', usersRouter)
 
 // Health check endpoint
 app.get('/api/health', async (c) => {

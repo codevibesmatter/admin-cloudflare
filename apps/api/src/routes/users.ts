@@ -1,7 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { z } from 'zod'
 import type { AppContext } from '../types'
-import { errorResponses } from '../schemas/errors'
+import { errorResponses, errorSchema, ErrorCode } from '../schemas/errors'
 import { createRoute } from '@hono/zod-openapi'
 import { ClerkService } from '../lib/clerk'
 import { UserService } from '../services/user'
@@ -84,21 +84,23 @@ const userIdParamSchema = z.object({
 // Route definitions
 const listUsersRoute = createRoute({
   method: 'get',
-  path: '/',
-  tags: ['Users'],
-  summary: 'List users',
-  description: 'Retrieve a paginated list of users',
+  path: '/users',
   request: {
-    query: listUsersQuerySchema
+    query: z.object({
+      limit: z.string().optional(),
+      offset: z.string().optional(),
+      sortField: z.string().optional(),
+      sortOrder: z.string().optional()
+    })
   },
   responses: {
     200: {
+      description: 'Successfully retrieved users',
       content: {
         'application/json': {
           schema: listUsersResponseSchema
         }
-      },
-      description: 'Successfully retrieved users'
+      }
     },
     ...errorResponses
   }
@@ -106,10 +108,7 @@ const listUsersRoute = createRoute({
 
 const createUserRoute = createRoute({
   method: 'post',
-  path: '/',
-  tags: ['Users'],
-  summary: 'Create user',
-  description: 'Create a new user',
+  path: '/users',
   request: {
     body: {
       content: {
@@ -121,12 +120,12 @@ const createUserRoute = createRoute({
   },
   responses: {
     201: {
+      description: 'User created successfully',
       content: {
         'application/json': {
           schema: userSchema
         }
-      },
-      description: 'User created successfully'
+      }
     },
     ...errorResponses
   }
@@ -134,34 +133,32 @@ const createUserRoute = createRoute({
 
 const getUserRoute = createRoute({
   method: 'get',
-  path: '/{id}',
-  tags: ['Users'],
-  summary: 'Get user',
-  description: 'Get a user by ID',
+  path: '/users/{id}',
   request: {
-    params: userIdParamSchema
+    params: z.object({
+      id: z.string()
+    })
   },
   responses: {
     200: {
+      description: 'User found',
       content: {
         'application/json': {
           schema: userSchema
         }
-      },
-      description: 'User found'
+      }
     },
     ...errorResponses
   }
 })
 
 const updateUserRoute = createRoute({
-  method: 'put',
-  path: '/{id}',
-  tags: ['Users'],
-  summary: 'Update user',
-  description: 'Update an existing user',
+  method: 'patch',
+  path: '/users/{id}',
   request: {
-    params: userIdParamSchema,
+    params: z.object({
+      id: z.string()
+    }),
     body: {
       content: {
         'application/json': {
@@ -172,12 +169,12 @@ const updateUserRoute = createRoute({
   },
   responses: {
     200: {
+      description: 'User updated successfully',
       content: {
         'application/json': {
           schema: userSchema
         }
-      },
-      description: 'User updated successfully'
+      }
     },
     ...errorResponses
   }
@@ -185,63 +182,7 @@ const updateUserRoute = createRoute({
 
 const deleteUserRoute = createRoute({
   method: 'delete',
-  path: '/{id}',
-  tags: ['Users'],
-  summary: 'Delete user',
-  description: 'Delete a user',
-  request: {
-    params: userIdParamSchema
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: deleteUserResponseSchema
-        }
-      },
-      description: 'User deleted successfully'
-    },
-    ...errorResponses
-  }
-})
-
-// Clerk sync schemas
-const syncUserResponseSchema = z.object({
-  success: z.boolean(),
-  user: z.object({
-    id: z.string(),
-    clerkId: z.string().nullable(),
-    email: z.string(),
-    firstName: z.string(),
-    lastName: z.string(),
-    imageUrl: z.string().nullable(),
-    role: z.enum(['superadmin', 'admin', 'manager', 'cashier']),
-    status: z.enum(['active', 'inactive', 'invited', 'suspended']),
-    createdAt: z.string(),
-    updatedAt: z.string(),
-    metadata: z.string().nullable()
-  })
-}).openapi('SyncUserResponse')
-
-const clerkWebhookSchema = z.object({
-  data: z.object({
-    id: z.string(),
-    email_addresses: z.array(z.object({
-      email_address: z.string().email()
-    })),
-    first_name: z.string(),
-    last_name: z.string(),
-    image_url: z.string().optional()
-  })
-}).openapi('ClerkWebhookEvent')
-
-// Clerk sync route definitions
-const syncUserRoute = createRoute({
-  method: 'post',
-  path: '/:id/sync-clerk',
-  tags: ['Users'],
-  summary: 'Sync user with Clerk',
-  description: 'Sync user data with Clerk',
+  path: '/users/{id}',
   request: {
     params: z.object({
       id: z.string()
@@ -249,116 +190,15 @@ const syncUserRoute = createRoute({
   },
   responses: {
     200: {
+      description: 'User deleted successfully',
       content: {
         'application/json': {
-          schema: syncUserResponseSchema
-        }
-      },
-      description: 'User synced successfully'
-    },
-    ...errorResponses
-  }
-})
-
-const syncFromClerkRoute = createRoute({
-  method: 'post',
-  path: '/sync-from-clerk',
-  tags: ['Users'],
-  summary: 'Sync user from Clerk',
-  description: 'Sync user data from Clerk webhook',
-  request: {
-    body: {
-      content: {
-        'application/json': {
-          schema: clerkWebhookSchema
-        }
-      }
-    }
-  },
-  responses: {
-    201: {
-      description: 'User synchronized successfully',
-      content: {
-        'application/json': {
-          schema: syncUserResponseSchema
+          schema: deleteUserResponseSchema
         }
       }
     },
     ...errorResponses
   }
-})
-
-// Clerk sync route handlers
-app.openapi(syncUserRoute, async (c) => {
-  const { id } = c.req.valid('param')
-  const clerkService = new ClerkService(c.env, c)
-  const user = await clerkService.syncUser(id)
-  return c.json({ success: true, user })
-})
-
-app.openapi(syncFromClerkRoute, async (c) => {
-  const { data: clerkUser } = c.req.valid('json')
-  const userService = new UserService({ 
-    context: c, 
-    logger: c.env.logger
-  })
-  
-  const existingUser = await userService.getUserByClerkId(clerkUser.id)
-  
-  if (existingUser) {
-    const updatedUser = await userService.updateUser(existingUser.id, {
-      email: clerkUser.email_addresses[0]?.email_address,
-      firstName: clerkUser.first_name,
-      lastName: clerkUser.last_name,
-      imageUrl: clerkUser.image_url || undefined
-    })
-    if (!updatedUser) {
-      return notFound('User')
-    }
-    return c.json({ 
-      success: true,
-      user: {
-        id: updatedUser.id,
-        clerkId: updatedUser.clerkId,
-        email: updatedUser.email,
-        firstName: updatedUser.firstName,
-        lastName: updatedUser.lastName,
-        imageUrl: updatedUser.imageUrl || null,
-        role: updatedUser.role,
-        status: updatedUser.status,
-        createdAt: updatedUser.createdAt,
-        updatedAt: updatedUser.updatedAt,
-        metadata: updatedUser.metadata || null
-      }
-    }, 201)
-  }
-  
-  const newUser = await userService.createUser({
-    clerkId: clerkUser.id,
-    email: clerkUser.email_addresses[0]?.email_address,
-    firstName: clerkUser.first_name,
-    lastName: clerkUser.last_name,
-    imageUrl: clerkUser.image_url || undefined,
-    role: 'cashier',
-    status: 'active'
-  })
-  
-  return c.json({ 
-    success: true,
-    user: {
-      id: newUser.id,
-      clerkId: newUser.clerkId,
-      email: newUser.email,
-      firstName: newUser.firstName,
-      lastName: newUser.lastName,
-      imageUrl: newUser.imageUrl || null,
-      role: newUser.role,
-      status: newUser.status,
-      createdAt: newUser.createdAt,
-      updatedAt: newUser.updatedAt,
-      metadata: newUser.metadata || null
-    }
-  }, 201)
 })
 
 // Route handlers
