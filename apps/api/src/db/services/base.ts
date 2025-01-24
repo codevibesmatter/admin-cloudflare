@@ -1,54 +1,21 @@
-import type { Logger } from '../../lib/logger'
-import type { HonoContext } from '../../types'
-import { createDatabase } from '../config'
-import type { LibSQLDatabase } from 'drizzle-orm/libsql'
-import { users } from '../schema/users'
-
-export interface ServiceConfig {
-  logger: Logger
-  context: HonoContext
-}
-
-export class DatabaseError extends Error {
-  constructor(message: string, public cause?: unknown) {
-    super(message)
-    this.name = 'DatabaseError'
-  }
-}
+import { Context } from 'hono'
+import type { Database } from '..'
+import type { AppContext } from '../../types'
 
 export class BaseService {
-  protected db?: LibSQLDatabase<{ users: typeof users }>
-  protected logger: Logger
-  protected context: HonoContext
+  protected db: Database
+  protected context: Context<AppContext>
 
-  constructor(config: ServiceConfig) {
-    this.logger = config.logger
-    this.context = config.context
+  constructor(context: Context<AppContext>) {
+    this.context = context
+    this.db = context.env.db
   }
 
-  protected initDb() {
-    if (!this.db) {
-      const { db } = createDatabase({
-        TURSO_DATABASE_URL: this.context.env.TURSO_DATABASE_URL,
-        TURSO_AUTH_TOKEN: this.context.env.TURSO_AUTH_TOKEN
-      })
-      this.db = db
-    }
-    return this.db
-  }
-
-  protected logError(message: string, error: unknown) {
-    this.logger.error(message, {
-      error: error instanceof Error ? error.message : 'Unknown error'
-    })
-  }
-
-  protected async query<T>(fn: () => Promise<T>): Promise<T> {
+  protected async query<T>(fn: (db: Database) => Promise<T>): Promise<T> {
     try {
-      this.initDb()
-      return await fn()
+      return await fn(this.db)
     } catch (error) {
-      this.logError('Database query failed', error)
+      console.error('Database query error:', error)
       throw error
     }
   }

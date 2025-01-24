@@ -1,23 +1,31 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { z } from 'zod'
 import { sql } from 'drizzle-orm'
-import type { AppContext } from '../types'
+import type { AppContext, AppBindings } from '../types'
 import { errorResponses } from '../schemas/errors'
 import users from './users'
 
-const app = new OpenAPIHono<AppContext>()
+const app = new OpenAPIHono<AppBindings>()
 
 // Mount feature routes
 app.route('/users', users)
 
 // Health check route
-app.get('/', async (c) => {
+app.get('/health', async (c) => {
   try {
-    // Check database connection
-    await c.env.db.select().from(sql`SELECT 1`).get()
-    return c.json({ status: 'ok' })
+    // Test database connection
+    await c.env.db.execute(sql`SELECT 1`)
+    
+    return c.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString()
+    })
   } catch (error) {
-    return c.json({ status: 'error', error: String(error) }, 500)
+    return c.json({
+      status: 'unhealthy',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    }, 500)
   }
 })
 

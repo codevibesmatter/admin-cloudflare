@@ -6,7 +6,6 @@ compatibility_flags = ["nodejs_compat"]
 
 # Development environment configuration
 [env.development]
-# Define vars that should be set but values will come from .dev.vars
 vars = { ENVIRONMENT = "development" }
 
 # Development server configuration
@@ -15,3 +14,11 @@ port = 8787  # API port
 ip = "localhost"  # Use localhost
 local_protocol = "http"
 inspector_port = 9232  # Different debug port for API
+
+[vars]
+ENVIRONMENT = "development"
+
+[[env.development.d1_databases]]
+binding = "DB"
+database_name = "admin-cloudflare-dev"
+database_id = "development"

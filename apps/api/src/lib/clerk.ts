@@ -5,10 +5,10 @@ import type { AppBindings } from '../types'
 import type { Context } from 'hono'
 
 export class ClerkService {
-  private env: AppBindings
+  private env: AppBindings['Bindings']
   private context: Context
 
-  constructor(env: AppBindings, context: Context) {
+  constructor(env: AppBindings['Bindings'], context: Context) {
     this.env = env
     this.context = context
   }
@@ -21,7 +21,7 @@ export class ClerkService {
       throw new Error(`User not found in Clerk: ${clerkId}`)
     }
 
-    const { id, firstName, lastName, emailAddresses } = user
+    const { firstName, lastName, emailAddresses } = user
     const email = emailAddresses[0]?.emailAddress
 
     if (!email) {
@@ -29,44 +29,39 @@ export class ClerkService {
     }
 
     // Check if user exists
-    const existingUser = await this.env.db
+    const [existingUser] = await this.env.db
       .select()
       .from(users)
       .where(eq(users.clerkId, clerkId))
-      .get()
 
     if (existingUser) {
       // Update user
-      await this.env.db
+      const [updatedUser] = await this.env.db
         .update(users)
         .set({
           firstName: firstName || '',
           lastName: lastName || '',
           email,
-          updatedAt: new Date().toISOString(),
+          updatedAt: new Date(),
         })
         .where(eq(users.clerkId, clerkId))
-        .run()
+        .returning()
 
-      return existingUser
+      return updatedUser
     }
 
     // Create user
-    const newUser = await this.env.db
+    const [newUser] = await this.env.db
       .insert(users)
       .values({
-        id: id,
-        clerkId: clerkId,
+        clerkId,
         firstName: firstName || '',
         lastName: lastName || '',
         email,
-        role: 'admin',
-        status: 'active',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       })
       .returning()
-      .get()
 
     return newUser
   }

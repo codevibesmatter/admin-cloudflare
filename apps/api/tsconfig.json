@@ -16,11 +16,11 @@
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
-    "baseUrl": "../..",
+    "baseUrl": ".",
     "paths": {
-      "@admin-cloudflare/*": ["packages/*/src"]
+      "@/*": ["src/*"]
     }
   },
-  "include": ["src"],
+  "include": ["src/**/*", "scripts/**/*"],
   "exclude": ["**/seed.ts", "node_modules", "dist"]
 }

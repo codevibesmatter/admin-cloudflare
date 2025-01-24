@@ -1,65 +1,28 @@
-import type { Context } from 'hono'
-import type { Logger } from 'pino'
-import type { LibSQLDatabase } from 'drizzle-orm/libsql'
-import { members, organizations } from './db/schema/index'
-import type { Database } from './db/config'
+import type { Context as HonoContext } from 'hono'
+import type { Database } from './db'
 
-// Environment bindings for Hono
-export interface Bindings {
-  // Database
-  TURSO_DATABASE_URL: string
-  TURSO_AUTH_TOKEN: string
-  TURSO_ORG_GROUP: string
-  TURSO_ORG_TOKEN: string
-  
-  // Clerk
+export interface Env {
+  ENVIRONMENT: string
+  NEON_DATABASE_URL: string
   CLERK_SECRET_KEY: string
   CLERK_WEBHOOK_SECRET: string
-  
-  // Cloudflare (optional in development)
-  CLOUDFLARE_API_TOKEN?: string
-  CLOUDFLARE_ACCOUNT_ID?: string
-  
-  // Misc
-  ENVIRONMENT: string
-}
-
-// Runtime bindings
-export interface AppBindings extends Bindings {
   db: Database
-  logger: Logger
 }
 
-// Variables that can be set in context
-export interface Variables {
-  userId?: string
-  organizationId?: string
-  organizationRole?: string
-  organizationContext?: OrganizationContext
-  user?: {
-    id: string
-  }
+export interface AppContext {
+  Bindings: Env
 }
 
-// Organization context type
-export interface OrganizationContext {
-  id: string
-  role: string
-  organization: {
-    id: string
-    clerk_id: string
-    name: string
-  }
+export type Context = HonoContext<AppContext>
+
+export type AppBindings = {
+  Bindings: Env
+  Variables: Record<string, unknown>
 }
 
-// Complete app context type
-export type AppContext = {
-  Bindings: AppBindings
-  Variables: Variables
+export type WebhookBody = {
+  data: unknown
+  type: string
 }
 
-// Re-export HonoContext type for convenience
-export type HonoContext = Context<AppContext>
-
-// Re-export for convenience
-export type { Env } from 'hono' 
+export type { HonoContext } 

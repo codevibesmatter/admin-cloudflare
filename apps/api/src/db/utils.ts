@@ -1,7 +1,22 @@
 import { eq, and, desc, asc, sql, type SQL } from 'drizzle-orm'
 import type { Context } from 'hono'
 import type { AppContext } from '../types'
-import type { SQLiteTableWithColumns } from 'drizzle-orm/sqlite-core'
+import type { PgTableWithColumns } from 'drizzle-orm/pg-core'
+
+// Health check function
+export async function checkDatabaseHealth(context: Context<AppContext>) {
+  try {
+    // Test query to check database connection
+    const result = await context.env.db.execute(sql`SELECT 1`)
+    return { ok: true, message: 'Database connection successful' }
+  } catch (error: any) {
+    return { 
+      ok: false, 
+      message: 'Database connection failed',
+      error: error?.message || String(error)
+    }
+  }
+}
 
 // Pagination types
 export type PaginationParams = {
@@ -31,13 +46,13 @@ export function normalizePaginationParams(params: PaginationParams) {
   return {
     cursor: params.cursor,
     limit,
-    sortField: params.sortField || 'createdAt',
+    sortField: params.sortField || 'created_at',
     sortOrder: params.sortOrder || 'desc'
   }
 }
 
 // Utility to create pagination query parts
-export function createPaginationQuery<T extends SQLiteTableWithColumns<any>>(
+export function createPaginationQuery<T extends PgTableWithColumns<any>>(
   table: T,
   params: PaginationParams,
   additionalWhere?: SQL<unknown>
@@ -52,7 +67,7 @@ export function createPaginationQuery<T extends SQLiteTableWithColumns<any>>(
   const conditions: SQL<unknown>[] = []
   
   // Base condition
-  conditions.push(sql`1=1`)
+  conditions.push(sql`TRUE`)
   
   // Add cursor condition if present
   if (cursor) {

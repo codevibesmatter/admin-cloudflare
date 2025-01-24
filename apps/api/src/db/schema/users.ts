@@ -1,7 +1,8 @@
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { z } from 'zod'
+import { userRoleSchema, userStatusSchema } from '@admin-cloudflare/api-types'
 
 // Define user roles and status as string literals
 export const UserRole = {
@@ -31,21 +32,23 @@ export const SyncStatus = {
 export type SyncStatusType = typeof SyncStatus[keyof typeof SyncStatus]
 
 // Users table
-export const users = sqliteTable('users', {
-  id: text('id').primaryKey(),
-  clerkId: text('clerk_id').notNull().unique(),
+export const users = pgTable('users', {
+  id: uuid('id').defaultRandom().primaryKey(),
   email: text('email').notNull(),
   firstName: text('first_name').notNull(),
   lastName: text('last_name').notNull(),
-  imageUrl: text('image_url'),
   role: text('role', { enum: ['superadmin', 'admin', 'manager', 'cashier'] }).notNull().default('cashier'),
   status: text('status', { enum: ['active', 'inactive', 'invited', 'suspended'] }).notNull().default('active'),
-  syncStatus: text('sync_status', { enum: ['synced', 'pending', 'failed'] }).notNull().default('pending'),
-  lastSyncAttempt: text('last_sync_attempt'),
-  syncError: text('sync_error'),
-  metadata: text('metadata'),
-  createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
+  imageUrl: text('image_url'),
+  username: text('username'),
+  externalId: text('external_id'),
+  publicMetadata: text('public_metadata'),
+  privateMetadata: text('private_metadata'),
+  unsafeMetadata: text('unsafe_metadata'),
+  lastSignInAt: text('last_sign_in_at'),
+  clerkId: text('clerk_id').notNull().unique(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 // Relations will be defined in the index.ts to avoid circular dependencies
@@ -55,28 +58,27 @@ export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 
 // Zod schemas for validation
-export const insertUserSchema = createInsertSchema(users, {
-  email: z.string().email().openapi({
-    description: 'User email address',
-    example: 'user@example.com'
-  }),
-  firstName: z.string().min(2).openapi({
-    description: 'User first name',
-    example: 'John'
-  }),
-  lastName: z.string().min(2).openapi({
-    description: 'User last name',
-    example: 'Doe'
-  }),
-  role: z.enum(['superadmin', 'admin', 'manager', 'cashier'] as const).openapi({
-    description: 'User role in the system',
-    example: 'manager'
-  }),
-  status: z.enum(['active', 'inactive', 'invited', 'suspended'] as const).openapi({
-    description: 'Current status of the user',
-    example: 'active'
-  }),
-}).openapi('InsertUser')
+export const insertUserSchema = z.object({
+  email: z.string().email(),
+  firstName: z.string().min(2),
+  lastName: z.string().min(2),
+  role: userRoleSchema,
+  status: userStatusSchema,
+  clerkId: z.string(),
+}) satisfies z.ZodType<NewUser>
 
-export const selectUserSchema = createSelectSchema(users).openapi('User')
-export const updateUserSchema = insertUserSchema.partial().openapi('UpdateUser') 
+export const selectUserSchema = z.object({
+  ...insertUserSchema.shape,
+  id: z.string().uuid(),
+  imageUrl: z.string().nullable(),
+  username: z.string().nullable(),
+  externalId: z.string().nullable(),
+  publicMetadata: z.string().nullable(),
+  privateMetadata: z.string().nullable(),
+  unsafeMetadata: z.string().nullable(),
+  lastSignInAt: z.string().nullable(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+}) satisfies z.ZodType<User>
+
+export const updateUserSchema = insertUserSchema.partial() 

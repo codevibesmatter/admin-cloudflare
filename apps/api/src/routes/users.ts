@@ -1,285 +1,108 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
-import { z } from 'zod'
-import type { AppContext } from '../types'
-import { errorResponses, errorSchema, ErrorCode } from '../schemas/errors'
-import { createRoute } from '@hono/zod-openapi'
-import { ClerkService } from '../lib/clerk'
+import type { Context } from 'hono'
 import { UserService } from '../services/user'
-import { generateId } from '../lib/utils'
-import { notFound } from '../middleware/error'
-import { users } from '../db/schema/users'
+import type { AppBindings } from '../types'
+import { errorResponses, ErrorCode, type APIError } from '../schemas/errors'
+import { routes, type UserSchema } from '../schemas/users'
+import type { User } from '@admin-cloudflare/api-types'
 
-const app = new OpenAPIHono<AppContext>()
+const app = new OpenAPIHono<AppBindings>()
 
-// User schemas
-export const userSchema = z.object({
-  id: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  imageUrl: z.string().optional(),
-  firstName: z.string(),
-  lastName: z.string(),
-  clerkId: z.string(),
-  email: z.string(),
-  role: z.enum(['superadmin', 'admin', 'manager', 'cashier']),
-  status: z.enum(['active', 'inactive', 'invited', 'suspended']),
-  metadata: z.string().optional()
-})
-
-export type User = z.infer<typeof userSchema>
-
-export const createUserSchema = userSchema.omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
-})
-
-export type CreateUserInput = z.infer<typeof createUserSchema>
-
-export const updateUserSchema = createUserSchema.partial()
-
-export type UpdateUserInput = z.infer<typeof updateUserSchema>
-
-// Response schemas
-const listUsersResponseSchema = z.object({
-  users: z.array(userSchema),
-  total: z.number()
-}).openapi('ListUsersResponse')
-
-const deleteUserResponseSchema = z.object({
-  success: z.boolean()
-}).openapi('DeleteUserResponse')
-
-// Query/Path parameter schemas
-const listUsersQuerySchema = z.object({
-  cursor: z.string().optional().openapi({
-    param: {
-      name: 'cursor',
-      in: 'query'
-    },
-    example: 'next_12345',
-    description: 'Cursor for pagination'
-  }),
-  limit: z.number().optional().openapi({
-    param: {
-      name: 'limit',
-      in: 'query'
-    },
-    example: 10,
-    description: 'Number of items to return'
-  })
-}).openapi('ListUsersQuery')
-
-const userIdParamSchema = z.object({
-  id: z.string().openapi({
-    param: {
-      name: 'id',
-      in: 'path'
-    },
-    example: 'usr_123',
-    description: 'User ID'
-  })
-}).openapi('UserIdParam')
-
-// Route definitions
-const listUsersRoute = createRoute({
-  method: 'get',
-  path: '/users',
-  request: {
-    query: z.object({
-      limit: z.string().optional(),
-      offset: z.string().optional(),
-      sortField: z.string().optional(),
-      sortOrder: z.string().optional()
-    })
-  },
-  responses: {
-    200: {
-      description: 'Successfully retrieved users',
-      content: {
-        'application/json': {
-          schema: listUsersResponseSchema
-        }
-      }
-    },
-    ...errorResponses
+// Convert DB user to API response
+function toApiUser(user: User): UserSchema {
+  return {
+    id: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    role: user.role,
+    status: user.status,
+    clerkId: user.clerkId,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt
   }
-})
+}
 
-const createUserRoute = createRoute({
-  method: 'post',
-  path: '/users',
-  request: {
-    body: {
-      content: {
-        'application/json': {
-          schema: createUserSchema
-        }
-      }
-    }
-  },
-  responses: {
-    201: {
-      description: 'User created successfully',
-      content: {
-        'application/json': {
-          schema: userSchema
-        }
-      }
-    },
-    ...errorResponses
+// Convert API input to DB user
+function toDbUser(data: any): Omit<User, 'createdAt' | 'updatedAt'> {
+  return {
+    ...data,
+    lastSignInAt: data.lastSignInAt ? new Date(data.lastSignInAt) : null
   }
-})
+}
 
-const getUserRoute = createRoute({
-  method: 'get',
-  path: '/users/{id}',
-  request: {
-    params: z.object({
-      id: z.string()
-    })
-  },
-  responses: {
-    200: {
-      description: 'User found',
-      content: {
-        'application/json': {
-          schema: userSchema
-        }
-      }
-    },
-    ...errorResponses
-  }
-})
+// Error response helper
+function errorResponse(c: Context, error: APIError, status: 400 | 401 | 403 | 404 | 500 | 503) {
+  return c.json(error, status)
+}
 
-const updateUserRoute = createRoute({
-  method: 'patch',
-  path: '/users/{id}',
-  request: {
-    params: z.object({
-      id: z.string()
-    }),
-    body: {
-      content: {
-        'application/json': {
-          schema: updateUserSchema
-        }
-      }
-    }
-  },
-  responses: {
-    200: {
-      description: 'User updated successfully',
-      content: {
-        'application/json': {
-          schema: userSchema
-        }
-      }
-    },
-    ...errorResponses
-  }
-})
-
-const deleteUserRoute = createRoute({
-  method: 'delete',
-  path: '/users/{id}',
-  request: {
-    params: z.object({
-      id: z.string()
-    })
-  },
-  responses: {
-    200: {
-      description: 'User deleted successfully',
-      content: {
-        'application/json': {
-          schema: deleteUserResponseSchema
-        }
-      }
-    },
-    ...errorResponses
-  }
-})
-
-// Route handlers
-app.openapi(listUsersRoute, async (c) => {
-  const { limit, cursor } = c.req.query()
-  const userService = new UserService({ 
-    context: c, 
-    logger: c.env.logger
-  })
-  const { users, total } = await userService.listUsers({ 
-    limit: limit ? Number(limit) : undefined, 
-    cursor 
-  })
-  return c.json({ 
-    users: users.map(user => ({
-      ...user,
-      imageUrl: user.imageUrl || undefined,
-      metadata: user.metadata || undefined
-    })),
-    total 
-  })
-})
-
-app.openapi(createUserRoute, async (c) => {
-  const data = c.req.valid('json')
-  const userService = new UserService({ 
-    context: c, 
-    logger: c.env.logger
-  })
-  const user = await userService.createUser(data)
+// List users route
+app.openapi(routes.listUsers, async (c) => {
+  const userService = new UserService(c as any)
+  const { users } = await userService.listUsers()
   return c.json({
-    ...user,
-    imageUrl: user.imageUrl || undefined,
-    metadata: user.metadata || undefined
-  }, 201)
+    data: { users: users.map(toApiUser) },
+    meta: { timestamp: new Date().toISOString() }
+  }) as any
 })
 
-app.openapi(getUserRoute, async (c) => {
-  const { id } = c.req.valid('param')
-  const userService = new UserService({ 
-    context: c, 
-    logger: c.env.logger
+// Create user route
+app.openapi(routes.createUser, async (c) => {
+  const userService = new UserService(c as any)
+  const data = await c.req.json()
+  const user = await userService.createUser({
+    ...data,
+    role: data.role || 'cashier',
+    status: data.status || 'active'
   })
-  const user = await userService.getUser(id)
+  return c.json(toApiUser(user), 201) as any
+})
+
+// Get user route
+app.openapi(routes.getUser, async (c) => {
+  const userService = new UserService(c as any)
+  const id = c.req.param('id')
+  const user = await userService.getUserById(id)
+  
   if (!user) {
-    return notFound('User')
+    return c.json({ 
+      code: ErrorCode.NOT_FOUND,
+      message: 'User not found',
+      requestId: crypto.randomUUID()
+    } as APIError, 404) as any
   }
-  return c.json({
-    ...user,
-    imageUrl: user.imageUrl || undefined,
-    metadata: user.metadata || undefined
-  })
+
+  return c.json(toApiUser(user)) as any
 })
 
-app.openapi(updateUserRoute, async (c) => {
-  const { id } = c.req.valid('param')
-  const data = c.req.valid('json')
-  const userService = new UserService({ 
-    context: c, 
-    logger: c.env.logger
+// Update user route  
+app.openapi(routes.updateUser, async (c) => {
+  const userService = new UserService(c as any)
+  const id = c.req.param('id')
+  const data = await c.req.json()
+
+  const user = await userService.updateUser(id, {
+    ...data,
+    role: data.role,
+    status: data.status
   })
-  const user = await userService.updateUser(id, data)
   if (!user) {
-    return notFound('User')
+    return c.json({
+      code: ErrorCode.NOT_FOUND, 
+      message: 'User not found',
+      requestId: crypto.randomUUID()
+    } as APIError, 404) as any
   }
-  return c.json({
-    ...user,
-    imageUrl: user.imageUrl || undefined,
-    metadata: user.metadata || undefined
-  })
+
+  return c.json(toApiUser(user)) as any
 })
 
-app.openapi(deleteUserRoute, async (c) => {
-  const { id } = c.req.valid('param')
-  const userService = new UserService({ 
-    context: c, 
-    logger: c.env.logger
-  })
+// Delete user route
+app.openapi(routes.deleteUser, async (c) => {
+  const userService = new UserService(c as any)
+  const id = c.req.param('id')
   await userService.deleteUser(id)
-  return c.json({ success: true })
+  return c.json({ success: true }) as any
 })
 
-export type UsersType = typeof app
 export default app 

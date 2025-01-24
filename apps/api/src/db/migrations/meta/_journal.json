@@ -1,0 +1,20 @@
+{
+  "version": "5",
+  "dialect": "pg",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1737677352576,
+      "tag": "0000_true_sister_grimm",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1737677727022,
+      "tag": "0001_curvy_scalphunter",
+      "breakpoints": true
+    }
+  ]
+}

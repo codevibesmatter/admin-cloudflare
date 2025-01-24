@@ -1,26 +1,19 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { prettyJSON } from 'hono/pretty-json'
-import { secureHeaders } from 'hono/secure-headers'
 import { swaggerUI } from '@hono/swagger-ui'
-import webhooksRouter from './routes/webhooks/clerk'
-import usersRouter from './routes/users'
-import { errorHandler } from './middleware/error'
-import type { AppBindings, Variables } from './types'
-import { createEnv, loadEnv } from './env'
-import { createDatabase } from './db/config'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { sql } from 'drizzle-orm'
-import pino from 'pino'
+import { createDb } from './db'
+import type { AppBindings } from './types'
+import userRoutes from './routes/users'
 
 // Create app with proper typing
-const app = new OpenAPIHono<{ Bindings: AppBindings; Variables: Variables }>()
+const app = new OpenAPIHono<AppBindings>()
 
 // Global middleware
 app.use('*', prettyJSON())
-app.use('*', secureHeaders())
 app.use('*', cors())
-app.use('*', errorHandler)
 
 // OpenAPI documentation
 app.doc('/api/docs', {
@@ -39,80 +32,41 @@ app.doc('/api/docs', {
 })
 
 // Serve Swagger UI
-app.get('/api/swagger', swaggerUI({ url: '/api/docs' }) as any)
+app.get('/api/swagger', swaggerUI({ url: '/api/docs' }))
 
-// Initialize environment and database
+// Initialize database
 app.use('*', async (c, next) => {
+  if (!c.env.NEON_DATABASE_URL) {
+    return c.json({ error: 'Database URL not configured' }, 500)
+  }
+  
   try {
-    // Configure logger
-    const logger = pino({
-      level: c.env.ENVIRONMENT === 'development' ? 'debug' : 'info',
-      transport: {
-        target: 'pino-pretty'
-      }
-    })
-
-    // Load environment variables
-    const envVars = {
-      TURSO_DATABASE_URL: c.env.TURSO_DATABASE_URL,
-      TURSO_AUTH_TOKEN: c.env.TURSO_AUTH_TOKEN,
-      TURSO_ORG_GROUP: c.env.TURSO_ORG_GROUP,
-      TURSO_ORG_TOKEN: c.env.TURSO_ORG_TOKEN,
-      CLERK_SECRET_KEY: c.env.CLERK_SECRET_KEY,
-      CLERK_WEBHOOK_SECRET: c.env.CLERK_WEBHOOK_SECRET,
-      ENVIRONMENT: c.env.ENVIRONMENT
-    }
-    
-    // Load and validate environment
-    const env = loadEnv(envVars)
-    
-    // Create database connection
-    const { db, client } = createDatabase(env)
-    
-    // Test database connection
-    await db.select().from(sql`SELECT 1`).get()
-    
-    // Create full environment with runtime dependencies
-    const fullEnv = createEnv(env, { db: client, logger })
-    
-    // Update context with initialized services
-    c.env.db = db
-    c.env.logger = logger
-    
-    return await next()
+    c.env.db = createDb(c.env.NEON_DATABASE_URL)
+    await c.env.db.execute(sql`SELECT 1`) // Test connection
+    return next()
   } catch (error) {
-    console.error('Failed to initialize:', error)
-    return c.json({ error: 'Internal Server Error' }, 500)
+    console.error('Database connection failed:', error)
+    return c.json({ 
+      error: 'Database connection failed',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500)
   }
 })
 
 // Mount routes
-app.route('/api', webhooksRouter)
-app.route('/api', usersRouter)
+app.route('/api/users', userRoutes)
 
-// Health check endpoint
+// Health check
 app.get('/api/health', async (c) => {
   try {
-    console.log('Testing database connection...')
-    // Use the existing Drizzle instance from middleware
-    const [result] = await c.env.db.select({ one: sql`1` }).from(sql`(SELECT 1) as test`)
-    console.log('Database query successful:', result)
-    return c.json({ 
-      status: 'healthy', 
-      database: 'connected',
-      result
-    })
+    const db = createDb(c.env.NEON_DATABASE_URL!)
+    await db.execute(sql`SELECT 1`)
+    return c.json({ status: 'healthy' })
   } catch (error) {
-    console.error('Database health check failed:', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
-    })
-    c.status(500)
     return c.json({ 
-      status: 'unhealthy', 
-      database: 'disconnected',
+      status: 'unhealthy',
       error: error instanceof Error ? error.message : 'Unknown error'
-    })
+    }, 500)
   }
 })
 

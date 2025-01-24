@@ -1,77 +1,93 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
+import { Webhook } from 'svix'
 import { z } from 'zod'
-import type { AppContext } from '../../types'
 import { ClerkService } from '../../lib/clerk'
-import { UserService } from '../../services/user'
-import { createRoute } from '@hono/zod-openapi'
+import { UserService } from '../../db'
+import type { AppBindings } from '../../types'
 
-const app = new OpenAPIHono<AppContext>()
+const app = new OpenAPIHono<AppBindings>()
 
-const webhookEventSchema = z.object({
-  type: z.string(),
+// Webhook event schema
+const webhookSchema = z.object({
   data: z.object({
     id: z.string(),
     email_addresses: z.array(z.object({
       email_address: z.string()
     })),
-    first_name: z.string(),
-    last_name: z.string(),
-    image_url: z.string().optional()
-  })
+    first_name: z.string().optional(),
+    last_name: z.string().optional()
+  }),
+  type: z.string(),
+  object: z.string()
 })
 
-const webhookRoute = createRoute({
-  method: 'post',
-  path: '/webhooks/clerk',
-  request: {
-    body: {
-      content: {
-        'application/json': {
-          schema: webhookEventSchema
-        }
-      }
+// Webhook handler
+app.post('/', async (c) => {
+  const secret = c.env.CLERK_WEBHOOK_SECRET
+  if (!secret) {
+    console.error('Clerk webhook secret not configured')
+    return c.json({ error: 'Webhook secret not configured' }, 500)
+  }
+
+  // Verify webhook signature
+  const wh = new Webhook(secret)
+  let evt: z.infer<typeof webhookSchema>
+
+  try {
+    // Get the webhook body
+    const payload = await c.req.json()
+    
+    // Get the Svix headers
+    const svixId = c.req.header('svix-id')
+    const svixTimestamp = c.req.header('svix-timestamp')
+    const svixSignature = c.req.header('svix-signature')
+
+    if (!svixId || !svixTimestamp || !svixSignature) {
+      console.error('Missing Svix headers')
+      return c.json({ error: 'Missing webhook headers' }, 400)
     }
-  },
-  responses: {
-    200: {
-      description: 'Webhook processed successfully',
-      content: {
-        'application/json': {
-          schema: z.object({
-            success: z.boolean()
-          })
-        }
+
+    // Verify the payload with the headers
+    evt = wh.verify(JSON.stringify(payload), {
+      'svix-id': svixId,
+      'svix-timestamp': svixTimestamp,
+      'svix-signature': svixSignature
+    }) as any
+  } catch (err) {
+    console.error('Webhook verification failed:', err)
+    return c.json({ error: 'Webhook verification failed' }, 400)
+  }
+
+  // Parse and validate the event
+  const result = webhookSchema.safeParse(evt)
+  if (!result.success) {
+    console.error('Invalid webhook payload:', result.error)
+    return c.json({ error: 'Invalid webhook payload' }, 400)
+  }
+
+  const { data, type } = result.data
+
+  try {
+    // Handle different event types
+    switch (type) {
+      case 'user.created':
+      case 'user.updated': {
+        const userService = new UserService(c as any)
+        const clerkService = new ClerkService(c.env, c)
+        const user = await clerkService.syncUser(data.id)
+        return c.json({ success: true, user })
       }
-    },
-    400: {
-      description: 'Invalid webhook event',
-      content: {
-        'application/json': {
-          schema: z.object({
-            error: z.string()
-          })
-        }
-      }
+      default:
+        console.warn('Unhandled event type:', type)
+        return c.json({ success: true })
     }
+  } catch (error) {
+    console.error('Error processing webhook:', error)
+    return c.json({ 
+      error: 'Error processing webhook',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500)
   }
 })
 
-app.openapi(webhookRoute, async (c) => {
-  const data = c.req.valid('json')
-  const userService = new UserService({ context: c, logger: c.env.logger })
-  const clerkService = new ClerkService(c.env, c)
-  
-  switch (data.type) {
-    case 'user.created':
-    case 'user.updated':
-      await clerkService.syncUser(data.data.id)
-      break
-    default:
-      c.env.logger.warn('Unhandled event type', { type: data.type })
-  }
-  
-  return c.json({ success: true }, 200)
-})
-
-export type WebhooksType = typeof app
 export default app 

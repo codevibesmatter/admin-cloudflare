@@ -2,13 +2,14 @@ import type { User, WebhookEvent } from '@clerk/backend'
 import { BaseSyncService } from './base'
 import type { SyncConfig, SyncState } from './types'
 import { ValidationError, NonRetryableError } from './types'
-import { UserService } from '../db/services/users'
+import { UserService } from '../db'
 import type { UserRoleType, UserStatusType, SyncStatusType } from '../db/schema/users'
 import type { UserEvent } from '@admin-cloudflare/api-types'
 import type { Env, AppBindings } from '../types'
 import { logger } from '../lib/logger'
 import { ClerkService } from '../lib/clerk'
 import type { Context } from 'hono'
+import type { AppContext } from '../types'
 
 export type UserStatus = 'active' | 'inactive' | 'invited' | 'suspended' | 'deleted'
 
@@ -28,13 +29,14 @@ interface WebhookUser extends Partial<User> {
  */
 export class UserSyncService extends BaseSyncService {
   private readonly userService: UserService
+  private readonly clerkService: ClerkService
+  private readonly context: Context<AppContext>
 
   constructor(config: SyncConfig) {
     super(config)
-    this.userService = new UserService({
-      context: config.context,
-      logger: config.context.env.logger
-    })
+    this.context = config.context
+    this.userService = new UserService(this.context as any)
+    this.clerkService = new ClerkService(this.context.env, this.context)
   }
 
   /**
