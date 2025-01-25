@@ -3,25 +3,27 @@ import { eq } from 'drizzle-orm'
 import { users } from '../db/schema/users'
 import type { AppBindings } from '../types'
 import type { Context } from 'hono'
+import { createClerkClient } from '@clerk/backend'
 
 export class ClerkService {
   private env: AppBindings['Bindings']
   private context: Context
+  private clerk: ReturnType<typeof createClerkClient>
 
   constructor(env: AppBindings['Bindings'], context: Context) {
     this.env = env
     this.context = context
+    this.clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY })
   }
 
   async syncUser(clerkId: string) {
-    const clerkClient = this.context.get('clerk')
-    const user = await clerkClient.users.getUser(clerkId)
+    const user = await this.clerk.users.getUser(clerkId)
     
     if (!user) {
       throw new Error(`User not found in Clerk: ${clerkId}`)
     }
 
-    const { firstName, lastName, emailAddresses } = user
+    const { firstName, lastName, emailAddresses, id } = user
     const email = emailAddresses[0]?.emailAddress
 
     if (!email) {
@@ -54,10 +56,10 @@ export class ClerkService {
     const [newUser] = await this.env.db
       .insert(users)
       .values({
-        clerkId,
+        email,
         firstName: firstName || '',
         lastName: lastName || '',
-        email,
+        clerkId,
         createdAt: new Date(),
         updatedAt: new Date(),
       })

@@ -7,6 +7,8 @@ import { sql } from 'drizzle-orm'
 import { createDb } from './db'
 import type { AppBindings } from './types'
 import userRoutes from './routes/users'
+import clerkWebhook from './routes/webhooks/clerk'
+import { logger } from './lib/logger'
 
 // Create app with proper typing
 const app = new OpenAPIHono<AppBindings>()
@@ -14,6 +16,12 @@ const app = new OpenAPIHono<AppBindings>()
 // Global middleware
 app.use('*', prettyJSON())
 app.use('*', cors())
+
+// Add logger to environment
+app.use('*', async (c, next) => {
+  c.env.logger = logger
+  await next()
+})
 
 // OpenAPI documentation
 app.doc('/api/docs', {
@@ -55,6 +63,7 @@ app.use('*', async (c, next) => {
 
 // Mount routes
 app.route('/api/users', userRoutes)
+app.route('/api/webhooks/clerk', clerkWebhook)
 
 // Health check
 app.get('/api/health', async (c) => {

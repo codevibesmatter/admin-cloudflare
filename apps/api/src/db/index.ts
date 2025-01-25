@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/neon-http'
-import { neon } from '@neondatabase/serverless'
+import { neon, neonConfig } from '@neondatabase/serverless'
 import type { NeonHttpDatabase } from 'drizzle-orm/neon-http'
 import * as schema from './schema/index'
 
@@ -9,8 +9,8 @@ export function createDb(connectionString: string): NeonHttpDatabase<typeof sche
     throw new Error('Database connection string is required')
   }
 
-  const sql = neon(connectionString)
-  return drizzle(sql)
+  const sql = neon(connectionString) as any // Type assertion needed due to Neon types mismatch
+  return drizzle(sql, { schema })
 }
 
 // Export types

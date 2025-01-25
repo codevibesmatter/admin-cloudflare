@@ -1,50 +1,24 @@
-import { pino } from 'pino'
-import { LogContext, Logger } from '../types/logger'
+import type { LogContext, Logger } from '../types/logger'
 
-class PinoLogger implements Logger {
-  private pino: pino.Logger
-
-  constructor() {
-    this.pino = pino({
-      level: 'info',
-      transport: {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'HH:MM:ss',
-          ignore: 'pid,hostname,time',
-          messageKey: 'message',
-          levelFirst: true,
-          singleLine: false,
-          customPrettifiers: {
-            time: (timestamp: string) => {
-              const time = new Date(timestamp).toLocaleTimeString('en-US', { hour12: false })
-              return `[${time}]`
-            }
-          }
-        }
-      }
-    })
-  }
-
+class WorkerLogger implements Logger {
   error(message: string, context?: LogContext): void {
-    this.pino.error(context, message)
+    console.error(JSON.stringify({ level: 'error', message, ...context }))
   }
 
   warn(message: string, context?: LogContext): void {
-    this.pino.warn(context, message)
+    console.warn(JSON.stringify({ level: 'warn', message, ...context }))
   }
 
   info(message: string, context?: LogContext): void {
-    this.pino.info(context, message)
+    console.info(JSON.stringify({ level: 'info', message, ...context }))
   }
 
   debug(message: string, context?: LogContext): void {
-    this.pino.debug(context, message)
+    console.debug(JSON.stringify({ level: 'debug', message, ...context }))
   }
 }
 
-export const logger = new PinoLogger()
+export const logger = new WorkerLogger()
 
 interface ClerkWebhookData {
   id: string
