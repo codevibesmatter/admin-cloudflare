@@ -10,6 +10,7 @@
     "db:push": "turbo run db:push"
   },
   "devDependencies": {
+    "@types/node": "^22.10.1",
     "prettier": "^3.1.0",
     "turbo": "latest",
     "typescript": "^5.7.2"

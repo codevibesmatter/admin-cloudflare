@@ -12,8 +12,10 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate:pg",
+    "db:push": "drizzle-kit push:pg",
     "db:migrate": "tsx src/db/migrate.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:inspect": "drizzle-kit introspect:pg"
   },
   "dependencies": {
     "@admin-cloudflare/api-types": "workspace:*",
