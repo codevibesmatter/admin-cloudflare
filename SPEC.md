@@ -20,6 +20,11 @@ A modern admin dashboard built with:
 - [x] Clerk webhook integration
 - [x] Health check endpoint
 - [x] Type-safe schema validation with Zod
+- [x] User metadata storage
+- [x] Transaction-free database operations for Neon HTTP
+- [x] Structured logging implementation
+- [x] Webhook payload validation
+- [x] User lifecycle event handling (create/update/delete)
 
 ### In Progress
 - [ ] Frontend implementation
@@ -39,11 +44,19 @@ A modern admin dashboard built with:
 #### Database Schema
 Currently implemented tables:
 - `users` - Stores user information synced from Clerk
+  - Basic fields: id, clerkId, email, firstName, lastName
+  - Timestamps: createdAt, updatedAt
+- `user_data` - Stores user metadata
+  - Flexible key-value storage
+  - Used for signup tracking and name history
 
-#### Authentication
+#### Authentication & User Management
 - Clerk handles user authentication
-- Webhook integration for user sync
-- Role-based permissions stored in database
+- Webhook integration for user sync:
+  - User creation with metadata
+  - User updates with change tracking
+  - User deletion with cleanup
+- All database operations are transaction-free for Neon HTTP compatibility
 
 ### Frontend (React + Vite)
 - To be implemented
@@ -70,19 +83,20 @@ CLOUDFLARE_ACCOUNT_ID=
 2. Development Commands:
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Start development server
-npm run dev
+pnpm dev
 
 # Run database migrations
-npm run db:migrate
+pnpm db:migrate
 ```
 
 ## Next Steps
 
-1. Complete user management implementation
-2. Set up frontend project structure
-3. Implement role-based access control
-4. Add API documentation
-5. Set up testing infrastructure 
+1. Implement user search and filtering
+2. Add user profile management
+3. Set up frontend project structure
+4. Implement role-based access control
+5. Add API documentation
+6. Set up testing infrastructure 
