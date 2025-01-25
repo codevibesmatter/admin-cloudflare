@@ -1,6 +1,6 @@
 {
-  "id": "5a3b6be5-2bc2-46c6-8e62-136503a8dced",
-  "prevId": "25a7f541-9154-4061-934c-55b0c24b0e1a",
+  "id": "dc84edc9-1c97-4532-8dd4-3ab1af657070",
+  "prevId": "5a3b6be5-2bc2-46c6-8e62-136503a8dced",
   "version": "5",
   "dialect": "pg",
   "tables": {
@@ -80,6 +80,78 @@
           ]
         }
       }
+    },
+    "user_data": {
+      "name": "user_data",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "user_data_user_id_key_idx": {
+          "name": "user_data_user_id_key_idx",
+          "columns": [
+            "user_id",
+            "key"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "user_data_user_id_users_id_fk": {
+          "name": "user_data_user_id_users_id_fk",
+          "tableFrom": "user_data",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
     }
   },
   "enums": {

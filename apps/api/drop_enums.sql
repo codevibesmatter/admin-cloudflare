@@ -1,0 +1,2 @@
+DROP TYPE IF EXISTS "user_role" CASCADE;
+DROP TYPE IF EXISTS "user_status" CASCADE; 
