@@ -1,8 +1,7 @@
-# Sync Services Architecture
+# Sync Services
 
 ## Overview
-
-The sync services are responsible for keeping our application's data in sync with external services (primarily Clerk). They handle webhook events, manage data transformations, and ensure data consistency across systems.
+The sync services are responsible for keeping data synchronized between external services (like Clerk) and our internal database. They handle webhook events and ensure our database stays up-to-date with the latest user information.
 
 ## Directory Structure
 
@@ -16,152 +15,168 @@ src/
 │   └── organization.ts  # Organization sync service
 ```
 
+## User Sync Service
+
+The `UserSyncService` handles synchronization of user data between Clerk and our database. It processes webhook events for user creation, updates, and deletion.
+
+### Webhook Events
+
+The service handles the following webhook events:
+
+1. `user.created` - When a new user signs up via Clerk
+   ```typescript
+   {
+     type: "user.created",
+     data: {
+       id: string,
+       email_addresses: Array<{
+         email_address: string,
+         id: string
+       }>,
+       first_name: string,
+       last_name: string,
+       created_at: number,
+       updated_at: number,
+       image_url?: string
+     }
+   }
+   ```
+
+2. `user.updated` - When user details are modified in Clerk
+3. `user.deleted` - When a user is deleted from Clerk
+
+### Data Synchronization
+
+The service maintains the following data:
+
+1. Basic user information:
+   - Email address (from primary email)
+   - First and last name
+   - Creation and update timestamps
+   - Profile image URL
+
+2. User metadata:
+   - `signup_date`: ISO timestamp of user creation
+   - `signup_source`: Set to 'clerk'
+   - `name_history`: Array of name changes with timestamps
+
+### Implementation Details
+
+The service uses transactions-free operations to support the Neon HTTP driver:
+
+```typescript
+async createUserWithMetadata(data, metadata) {
+  // Create user first
+  const user = await db.insert(users).values(data).returning()
+  
+  // Then create metadata if provided
+  if (metadata) {
+    await db.insert(userData).values(
+      Object.entries(metadata).map(([key, value]) => ({
+        userId: user.id,
+        key,
+        value: JSON.stringify(value)
+      }))
+    )
+  }
+  
+  return user
+}
+```
+
+### Error Handling
+
+The service includes comprehensive error handling:
+- Validates webhook payloads
+- Handles missing or malformed data gracefully
+- Logs all operations for debugging
+- Returns appropriate error responses for invalid requests
+
+### Logging
+
+The service uses structured logging to track operations:
+```typescript
+logger.info('Handling user created event', {
+  clerkId: user.id,
+  userId: dbUser.id,
+  email: user.email_addresses?.[0]?.email_address
+})
+```
+
 ## Event Processing Steps
 
 ### User Created Event
-
-1. **Webhook Received**
-   - Clerk sends webhook to our API endpoint
-   - Our webhook handler validates the Clerk signature
-   - Event is parsed and validated against our schema
-   - If validation fails, returns 400/401 to Clerk
-   - If valid, event is passed to user sync service
-
-2. **Initial Validation**
-   - Sync service checks for required fields:
-     * Must have a Clerk ID
-     * Must have at least one email address
-     * Must have either first or last name
-   - Makes API call to Clerk to verify user exists
-   - If any validation fails, process stops here
-
-3. **Duplicate Prevention**
-   - Checks our database for existing user with same Clerk ID
-   - If found, marks sync as success (idempotency)
-   - Checks for any users with same email address
-   - If email conflict found, alerts admin and stops
-
-4. **Data Processing**
-   - Finds primary email (prefers verified email)
-   - Formats user's name for display
-   - Prepares metadata and timestamps
-   - Sets up default role and status
-   - Generates any required IDs or references
-
-5. **Database Operations**
-   - Starts a database transaction
-   - Creates main user record
-   - Creates user settings with defaults
-   - Stores Clerk metadata
-   - If any step fails, rolls back entire transaction
-
-6. **Cache & Search Updates**
-   - Clears any existing user caches
-   - Updates search indexes with new user
-   - Updates any relevant member lists
-   - Updates organization caches if needed
-
-7. **Frontend Notifications**
-   - Sends websocket event to connected clients
-   - Updates user lists in UI
-   - Updates member lists in organizations
-   - Updates navigation if needed
-   - Shows success/error notifications
-
-8. **Monitoring & Cleanup**
-   - Records sync duration and success
-   - Logs completion with relevant details
-   - Updates sync status in database
-   - Triggers any necessary alerts
-   - Cleans up temporary data
+1. Receives webhook with user data
+2. Extracts primary email and name information
+3. Creates user record with basic information
+4. Creates metadata records for tracking signup details and name history
 
 ### User Updated Event
+1. Receives webhook with updated user data
+2. Finds existing user by Clerk ID
+3. Updates user record with new information
+4. Updates metadata if name has changed
 
-1. **Webhook Received**
-   - Clerk sends update webhook
-   - Validates signature and payload
-   - Checks event type is user.updated
-   - Routes to update handler
+Example update operation:
+```typescript
+async updateUserWithMetadata(id: string, updates: Partial<User>, metadata?: Record<string, any>) {
+  // Update user first
+  const [user] = await db.update(users)
+    .set({
+      ...updates,
+      updatedAt: new Date()
+    })
+    .where(eq(users.id, id))
+    .returning()
 
-2. **Change Detection**
-   - Loads existing user from database
-   - Compares incoming data with stored data
-   - Identifies which fields have changed
-   - If nothing changed, ends process successfully
+  // If metadata provided, update it
+  if (metadata) {
+    // Delete existing metadata for keys we're updating
+    await db.delete(userData)
+      .where(and(
+        eq(userData.userId, id),
+        inArray(userData.key, Object.keys(metadata))
+      ))
 
-3. **Update Validation**
-   - Validates any changed email addresses
-   - Checks for email conflicts
-   - Verifies role changes are allowed
-   - Validates new field values
+    // Insert new metadata
+    await db.insert(userData)
+      .values(Object.entries(metadata).map(([key, value]) => ({
+        userId: id,
+        key,
+        value: JSON.stringify(value)
+      })))
+  }
 
-4. **Database Updates**
-   - Starts transaction
-   - Updates only changed fields
-   - Updates last modified timestamp
-   - Updates email verification status if changed
-   - Updates profile data if changed
+  return user
+}
+```
 
-5. **Related Data Updates**
-   - Updates user settings if needed
-   - Updates organization memberships if needed
-   - Updates search indexes
-   - Updates caches
-
-6. **Frontend Updates**
-   - Notifies connected clients
-   - Updates UI components
-   - Shows update notifications
-   - Refreshes relevant views
-
-7. **Cleanup & Monitoring**
-   - Logs changes made
-   - Records sync metrics
-   - Sends alerts if needed
-   - Updates sync status
+All operations are performed without transactions to support the Neon HTTP driver. The update process:
+1. Updates the user record first
+2. If metadata is provided:
+   - Deletes existing metadata for the keys being updated
+   - Inserts new metadata values
+3. All operations use individual queries instead of a transaction
 
 ### User Deleted Event
+1. Receives webhook with user deletion event
+2. Finds existing user by Clerk ID
+3. Deletes user metadata first (due to foreign key constraints)
+4. Deletes user record
+5. All operations are performed without transactions to support Neon HTTP driver
 
-1. **Webhook Received**
-   - Clerk sends deletion webhook
-   - Validates webhook authenticity
-   - Routes to deletion handler
+Example delete operation:
+```typescript
+async deleteUserWithMetadata(id: string) {
+  // Delete metadata first (due to foreign key)
+  await db.delete(userData)
+    .where(eq(userData.userId, id))
 
-2. **Pre-deletion Checks**
-   - Verifies user exists in our system
-   - Checks user's organization memberships
-   - Identifies owned organizations
-   - Checks for blocking conditions
-
-3. **Organization Cleanup**
-   - Removes user from all organizations
-   - Transfers ownership if needed
-   - Updates organization member counts
-   - Updates organization caches
-
-4. **Data Cleanup**
-   - Removes user settings
-   - Removes user metadata
-   - Removes search index entries
-   - Removes cache entries
-
-5. **User Deletion**
-   - Marks user as deleted
-   - Updates related records
-   - Maintains audit trail
-   - Handles soft vs hard delete
-
-6. **Frontend Cleanup**
-   - Notifies connected clients
-   - Removes user from lists
-   - Updates organization views
-   - Shows deletion notifications
-
-7. **Monitoring & Verification**
-   - Verifies complete removal
-   - Logs deletion details
-   - Records metrics
-   - Sends admin notifications
+  // Then delete user
+  await db.delete(users)
+    .where(eq(users.id, id))
+}
+```
 
 ### Organization Created Event
 

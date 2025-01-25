@@ -1,238 +1,125 @@
-import type { User, WebhookEvent } from '@clerk/backend'
-import { BaseSyncService } from './base'
-import type { SyncConfig, SyncState } from './types'
-import { ValidationError, NonRetryableError } from './types'
+import type { User } from '@clerk/backend'
 import { UserService } from '../db'
-import type { UserRoleType, UserStatusType, SyncStatusType } from '../db/schema/users'
+import type { UserRoleType, UserStatusType } from '../db/schema/users'
 import type { UserEvent } from '@admin-cloudflare/api-types'
-import type { Env, AppBindings } from '../types'
+import type { AppBindings } from '../types'
 import { logger } from '../lib/logger'
 import { ClerkService } from '../lib/clerk'
 import type { Context } from 'hono'
-import type { AppContext } from '../types'
 
 export type UserStatus = 'active' | 'inactive' | 'invited' | 'suspended' | 'deleted'
 
-export interface UserSyncState extends SyncState {
-  userId: string
-  clerkId: string
-  userStatus?: UserStatus
+interface WebhookUser {
+  id: string
+  email_addresses: Array<{
+    email_address: string
+    id: string
+  }>
+  first_name: string
+  last_name: string
+  created_at: number
+  updated_at: number
+  image_url?: string
 }
 
-interface WebhookUser extends Partial<User> {
-  deleted?: boolean
+type WebhookEventType = 'user.created' | 'user.updated' | 'user.deleted'
+
+interface WebhookEvent {
+  data: WebhookUser
+  type: string
+  object: string
 }
 
 /**
  * Service responsible for synchronizing user data between Clerk and our database.
  * Handles user creation, updates, and deletion events.
  */
-export class UserSyncService extends BaseSyncService {
-  private readonly userService: UserService
-  private readonly clerkService: ClerkService
-  private readonly context: Context<AppContext>
+export class UserSyncService {
+  private userService: UserService
+  private clerkService: ClerkService
+  private context: Context<AppBindings>
 
-  constructor(config: SyncConfig) {
-    super(config)
-    this.context = config.context
-    this.userService = new UserService(this.context as any)
-    this.clerkService = new ClerkService(this.context.env, this.context)
+  constructor({ context }: { context: Context<AppBindings> }) {
+    this.context = context
+    this.userService = new UserService(context)
+    this.clerkService = new ClerkService(context.env, context)
   }
 
-  /**
-   * Synchronizes a new user from Clerk to our database.
-   * Creates a new user record with basic profile information.
-   */
-  async syncUser(clerkUser: User): Promise<void> {
-    const result = await this.withRetry(async () => {
-      await this.validateExternalData(clerkUser)
-
-      const user = await this.userService.createUser({
-        clerkId: clerkUser.id,
-        email: clerkUser.emailAddresses[0]?.emailAddress ?? '',
-        firstName: clerkUser.firstName ?? '',
-        lastName: clerkUser.lastName ?? '',
-        imageUrl: clerkUser.imageUrl ?? null,
-        status: 'active' as UserStatusType,
-        role: 'user' as UserRoleType,
-      })
-
-      return user
+  async handleUserCreated(payload: WebhookEvent) {
+    const user = payload.data
+    this.context.env.logger.info('Handling user created event', {
+      clerkId: user.id,
+      rawEvent: JSON.stringify(payload)
     })
 
-    if (!result.success) {
-      await this.logSyncError(clerkUser.id, result.error!)
-      throw new NonRetryableError('Failed to sync user', { userId: clerkUser.id })
-    }
+    // Extract email and name
+    const email = user.email_addresses?.[0]?.email_address
+    const firstName = user.first_name || ''
+    const lastName = user.last_name || ''
+    const createdAt = user.created_at ? new Date(user.created_at) : new Date()
+    const updatedAt = user.updated_at ? new Date(user.updated_at) : new Date()
 
-    await this.markSyncComplete(clerkUser.id)
-  }
-
-  /**
-   * Updates user metadata in our database.
-   * Used for storing additional user-specific data.
-   */
-  async syncUserMetadata(userId: string, metadata: Record<string, unknown>): Promise<void> {
-    const result = await this.withRetry(async () => {
-      const user = await this.userService.updateUser(userId, {
-        status: 'active'
-      })
-      return user
-    })
-
-    if (!result.success) {
-      await this.logSyncError(userId, result.error!)
-      throw new NonRetryableError('Failed to sync user metadata', { userId })
-    }
-
-    await this.markSyncComplete(userId)
-  }
-
-  /**
-   * Updates a user's status in our database.
-   * Handles status changes like 'active', 'inactive', etc.
-   */
-  async syncUserStatus(userId: string, status: string): Promise<void> {
-    const result = await this.withRetry(async () => {
-      const user = await this.userService.updateUser(userId, {
-        status: status as 'active' | 'inactive' | 'invited' | 'suspended'
-      })
-      return user
-    })
-
-    if (!result.success) {
-      await this.logSyncError(userId, result.error!)
-      throw new NonRetryableError('Failed to sync user status', { userId })
-    }
-
-    await this.markSyncComplete(userId)
-  }
-
-  /**
-   * Handles the user.created webhook event.
-   * Creates a new user in our database.
-   */
-  async handleUserCreated(event: any): Promise<void> {
-    const { data: user } = event
-    const result = await this.withRetry(async () => {
-      // Check if user already exists
-      const existingUser = await this.userService.getUserByClerkId(user.id)
-      if (existingUser) {
-        this.config.context.env.logger.info('User already exists, skipping creation', {
-          clerkId: user.id,
-          userId: existingUser.id
-        })
-        return existingUser
+    // Create user with metadata
+    const newUser = await this.userService.createUserWithMetadata(
+      {
+        clerkId: user.id,
+        email: email || '',
+        firstName,
+        lastName,
+        createdAt,
+        updatedAt
+      },
+      {
+        signup_date: createdAt.toISOString(),
+        signup_source: 'clerk',
+        name_history: [{
+          first_name: firstName,
+          last_name: lastName,
+          changed_at: createdAt.toISOString()
+        }]
       }
+    )
 
-      return await this.syncUser(user)
+    this.context.env.logger.info('User created', {
+      clerkId: user.id,
+      userId: newUser.id
     })
-
-    if (!result.success) {
-      await this.logSyncError(user.id, result.error!)
-      throw new NonRetryableError('Failed to handle user creation', { userId: user.id })
-    }
-
-    await this.markSyncComplete(user.id)
   }
 
-  /**
-   * Handles the user.updated webhook event.
-   * Updates user information in our database.
-   */
-  async handleUserUpdated(event: any): Promise<void> {
-    const { data: user } = event
-    const result = await this.withRetry(async () => {
-      await this.validateExternalData(user)
-
-      const updatedUser = await this.userService.updateUser(user.id, {
-        email: user.emailAddresses[0]?.emailAddress ?? '',
-        firstName: user.firstName ?? '',
-        lastName: user.lastName ?? '',
-        imageUrl: user.imageUrl ?? null,
-      })
-
-      return updatedUser
-    })
-
-    if (!result.success) {
-      await this.logSyncError(user.id, result.error!)
-      throw new NonRetryableError('Failed to sync user update', { userId: user.id })
+  async handleUserUpdated(event: WebhookEvent): Promise<void> {
+    const user = await this.userService.getUserByClerkId(event.data.id)
+    if (!user) {
+      throw new Error('User not found')
     }
 
-    await this.markSyncComplete(user.id)
+    await this.userService.updateUserWithMetadata(
+      user.id,
+      {
+        email: event.data.email_addresses?.[0]?.email_address ?? '',
+        firstName: event.data.first_name ?? '',
+        lastName: event.data.last_name ?? '',
+        imageUrl: event.data.image_url ?? null,
+      }
+    )
+
+    this.context.env.logger.info('User updated', {
+      clerkId: event.data.id,
+      userId: user.id
+    })
   }
 
-  /**
-   * Handles the user.deleted webhook event.
-   * Removes the user from our database.
-   */
-  async handleUserDeleted(event: any): Promise<void> {
-    const clerkId = event.data.id
+  async handleUserDeleted(event: WebhookEvent): Promise<void> {
+    const user = await this.userService.getUserByClerkId(event.data.id)
+    if (!user) {
+      throw new Error('User not found')
+    }
+
+    await this.userService.deleteUserWithMetadata(user.id)
     
-    // Check if user exists first
-    const existingUser = await this.userService.getUserByClerkId(clerkId)
-    if (!existingUser) {
-      this.config.context.env.logger.info('User not found, skipping deletion', {
-        clerkId
-      })
-      return // Already achieved desired state - user doesn't exist
-    }
-
-    const result = await this.withRetry(async () => {
-      await this.userService.deleteUser(existingUser.id)
-      return true
+    this.context.env.logger.info('User deleted', {
+      clerkId: event.data.id,
+      userId: user.id
     })
-
-    if (!result.success) {
-      await this.logSyncError(clerkId, result.error!)
-      throw new NonRetryableError('Failed to sync user deletion', { clerkId })
-    }
-
-    await this.markSyncComplete(clerkId)
-  }
-
-  /**
-   * Updates the sync status for a user in our database.
-   */
-  protected async updateSyncStatus(entityId: string, state: Partial<SyncState>): Promise<void> {
-    // Skip status update for deleted users since they won't exist in DB
-    const userState = state as Partial<UserSyncState>
-    if (userState.userStatus === 'deleted') {
-      return
-    }
-
-    if (userState.userStatus) {
-      await this.userService.updateUser(entityId, {
-        status: userState.userStatus as 'active' | 'inactive' | 'invited' | 'suspended'
-      })
-    }
-  }
-
-  /**
-   * Validates user data from Clerk before processing.
-   * Ensures required fields are present and correctly formatted.
-   */
-  protected async validateExternalData(data: unknown): Promise<boolean> {
-    if (!data || typeof data !== 'object') {
-      throw new ValidationError('Invalid user data: must be an object')
-    }
-
-    const user = data as WebhookUser
-    // Skip validation for deleted users
-    if (user.deleted) {
-      return true
-    }
-
-    // For user.created events, we need these fields
-    if (!user.id) {
-      throw new ValidationError('Invalid user data: missing id field', {
-        id: user.id
-      })
-    }
-
-    // Email is optional in Clerk
-    return true
   }
 }
 
@@ -240,6 +127,6 @@ export async function handleUserEvent(event: UserEvent) {
   logger.info('Received user event', {
     type: event.type,
     userId: event.data.id,
-    data: event.data
+    rawEvent: JSON.stringify(event)
   })
 } 
