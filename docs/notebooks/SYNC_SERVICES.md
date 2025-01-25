@@ -3,18 +3,6 @@
 ## Overview
 The sync services are responsible for keeping data synchronized between external services (like Clerk) and our internal database. They handle webhook events and ensure our database stays up-to-date with the latest user information.
 
-## Directory Structure
-
-```
-src/
-├── sync/
-│   ├── index.ts         # Exports all sync services
-│   ├── types.ts         # Common types and interfaces
-│   ├── base.ts          # Base sync service with common functionality
-│   ├── user.ts          # User sync service
-│   └── organization.ts  # Organization sync service
-```
-
 ## User Sync Service
 
 The `UserSyncService` handles synchronization of user data between Clerk and our database. It processes webhook events for user creation, updates, and deletion.
@@ -62,25 +50,70 @@ The service maintains the following data:
 
 ### Implementation Details
 
-The service uses transactions-free operations to support the Neon HTTP driver:
+The service uses individual queries (no transactions) to support the Neon HTTP driver:
 
 ```typescript
+// Create user with metadata
 async createUserWithMetadata(data, metadata) {
   // Create user first
-  const user = await db.insert(users).values(data).returning()
-  
+  const [user] = await db.insert(users)
+    .values(data)
+    .returning()
+
   // Then create metadata if provided
   if (metadata) {
-    await db.insert(userData).values(
-      Object.entries(metadata).map(([key, value]) => ({
+    await db.insert(userData)
+      .values(Object.entries(metadata).map(([key, value]) => ({
         userId: user.id,
         key,
         value: JSON.stringify(value)
-      }))
-    )
+      })))
   }
-  
+
   return user
+}
+
+// Update user with metadata
+async updateUserWithMetadata(id, updates, metadata) {
+  // Update user first
+  const [user] = await db.update(users)
+    .set({
+      ...updates,
+      updatedAt: new Date()
+    })
+    .where(eq(users.id, id))
+    .returning()
+
+  // Update metadata if provided
+  if (metadata) {
+    // Delete existing metadata for keys we're updating
+    await db.delete(userData)
+      .where(and(
+        eq(userData.userId, id),
+        inArray(userData.key, Object.keys(metadata))
+      ))
+
+    // Insert new metadata
+    await db.insert(userData)
+      .values(Object.entries(metadata).map(([key, value]) => ({
+        userId: id,
+        key,
+        value: JSON.stringify(value)
+      })))
+  }
+
+  return user
+}
+
+// Delete user with metadata
+async deleteUserWithMetadata(id) {
+  // Delete metadata first (due to foreign key)
+  await db.delete(userData)
+    .where(eq(userData.userId, id))
+
+  // Delete user
+  await db.delete(users)
+    .where(eq(users.id, id))
 }
 ```
 
@@ -177,196 +210,6 @@ async deleteUserWithMetadata(id: string) {
     .where(eq(users.id, id))
 }
 ```
-
-### Organization Created Event
-
-1. **Webhook Processing**
-   - Validates organization creation webhook
-   - Checks required fields
-   - Verifies Clerk organization exists
-
-2. **Data Preparation**
-   - Formats organization name
-   - Validates and formats slug
-   - Prepares default settings
-   - Sets up initial state
-
-3. **Database Creation**
-   - Creates organization record
-   - Sets up default roles
-   - Creates settings records
-   - Establishes ownership
-
-4. **Cache & Search Setup**
-   - Creates organization caches
-   - Sets up search indexes
-   - Prepares member lists
-   - Updates global organization list
-
-5. **Frontend Initialization**
-   - Notifies clients of new organization
-   - Updates organization selectors
-   - Updates navigation
-   - Shows success messages
-
-### Organization Updated Event
-
-1. **Webhook Processing**
-   - Validates organization update webhook
-   - Verifies organization exists in Clerk
-   - Identifies changed fields
-   - If no changes, ends successfully
-
-2. **Update Validation**
-   - Validates new organization name if changed
-   - Validates new slug if changed
-   - Checks for slug conflicts
-   - Verifies update permissions
-
-3. **Database Updates**
-   - Starts transaction
-   - Updates organization record
-   - Updates settings if needed
-   - Updates metadata
-   - Commits or rolls back
-
-4. **Cache & Search Updates**
-   - Updates organization caches
-   - Updates search indexes
-   - Updates member list caches
-   - Updates global org lists
-
-5. **Frontend Updates**
-   - Notifies connected clients
-   - Updates organization displays
-   - Updates navigation items
-   - Shows success messages
-
-6. **Monitoring & Logging**
-   - Records update details
-   - Logs changes made
-   - Updates sync status
-   - Sends notifications if needed
-
-### Organization Deleted Event
-
-1. **Webhook Processing**
-   - Validates deletion webhook
-   - Verifies organization exists
-   - Checks deletion permissions
-   - Prepares for deletion
-
-2. **Pre-deletion Checks**
-   - Verifies no active members
-   - Checks for dependent resources
-   - Identifies cleanup requirements
-   - Validates deletion is allowed
-
-3. **Member Cleanup**
-   - Notifies all members
-   - Removes all memberships
-   - Updates user organization lists
-   - Cleans up member caches
-
-4. **Resource Cleanup**
-   - Removes organization settings
-   - Removes organization metadata
-   - Removes search indexes
-   - Cleans up associated data
-
-5. **Organization Removal**
-   - Marks organization as deleted
-   - Updates global organization list
-   - Maintains deletion audit trail
-   - Handles soft vs hard delete
-
-6. **Frontend Cleanup**
-   - Notifies all connected clients
-   - Removes from organization lists
-   - Updates user interfaces
-   - Shows deletion notifications
-
-7. **Verification & Monitoring**
-   - Verifies complete removal
-   - Logs deletion details
-   - Updates metrics
-   - Sends admin notifications
-
-### Organization Membership Created Event
-
-1. **Webhook Processing**
-   - Validates membership webhook
-   - Verifies organization exists
-   - Verifies user exists
-   - Checks membership permissions
-
-2. **Duplicate Prevention**
-   - Checks for existing membership
-   - Handles idempotency
-   - Verifies no conflicts
-   - Checks role assignments
-
-3. **Database Operations**
-   - Creates membership record
-   - Sets initial role
-   - Updates member counts
-   - Updates user's org list
-
-4. **Cache Updates**
-   - Updates member list cache
-   - Updates user's org cache
-   - Updates permission caches
-   - Updates search indexes
-
-5. **Frontend Updates**
-   - Notifies relevant clients
-   - Updates member lists
-   - Updates user interfaces
-   - Shows success messages
-
-6. **Monitoring & Logging**
-   - Records membership creation
-   - Updates metrics
-   - Logs details
-   - Sends notifications
-
-### Organization Membership Deleted Event
-
-1. **Webhook Processing**
-   - Validates removal webhook
-   - Verifies membership exists
-   - Checks removal permissions
-   - Prepares for removal
-
-2. **Pre-removal Checks**
-   - Verifies not last owner
-   - Checks for blocking conditions
-   - Identifies cleanup needs
-   - Validates removal allowed
-
-3. **Membership Removal**
-   - Removes membership record
-   - Updates member counts
-   - Updates user's org list
-   - Maintains audit trail
-
-4. **Cache Cleanup**
-   - Updates member list cache
-   - Clears user's org cache
-   - Updates permission caches
-   - Updates search indexes
-
-5. **Frontend Updates**
-   - Notifies affected clients
-   - Updates member lists
-   - Updates user interfaces
-   - Shows removal notifications
-
-6. **Monitoring & Cleanup**
-   - Verifies complete removal
-   - Records metrics
-   - Logs details
-   - Sends notifications if needed
 
 ## Complex Operations & Cloudflare Workflows
 
