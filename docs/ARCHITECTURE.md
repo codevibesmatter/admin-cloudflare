@@ -23,28 +23,31 @@
 **Key Technologies:**
 - Cloudflare Workers: Edge computing platform
 - Durable Objects: Stateful edge computing
-- Turso: Edge database
+- Neon Postgres: Edge database
 - R2: Edge storage
 - WebSockets: Real-time communication
 
 ```mermaid
 graph LR
-    User(("User"))
-    Frontend("Frontend")
-    API("API Worker")
-    External("External Services")
-    Webhook("Webhook Worker")
-    DO("Durable Objects")
-    DB("Database")
+    subgraph bg [" "]
+        style bg fill:#fffdf3,stroke:none
+        User(("User"))
+        Frontend("Frontend")
+        API("API Worker")
+        External("External Services")
+        Webhook("Webhook Worker")
+        DO("Durable Objects")
+        DB("Database")
 
-    User <--> Frontend
-    Frontend <--> DO
-    Frontend --> API
-    External --> Webhook
-    API <--> DO
-    API --> DB
-    Webhook --> API
-    DO <--> DB
+        User <--> Frontend
+        Frontend <--> DO
+        Frontend --> API
+        External --> Webhook
+        API <--> DO
+        API --> DB
+        Webhook --> API
+        DO <--> DB
+    end
 ```
 
 **Key Features:**
@@ -57,7 +60,7 @@ graph LR
 **Edge Processing:**
 1. Request routing to nearest edge
 2. State management via Durable Objects
-3. Data persistence with Turso
+3. Data persistence with Neon Postgres
 4. File handling with R2
 5. Real-time WebSocket connections
 
@@ -70,40 +73,34 @@ graph LR
 - Drizzle: Type-safe SQL toolkit
 - Zod: Runtime type validation
 - Clerk: Authentication & user management
-- Turso: Edge database
+- Neon Postgres: Edge database
 
 ```mermaid
 graph TB
-    subgraph Client["Client Layer"]
-        Request("API Request")
-        Response("Type-safe Response")
-    end
-
-    subgraph Edge["Edge Worker"]
-        direction TB
+    subgraph bg [" "]
+        style bg fill:#fffdf3,stroke:none
+        
+        Request["API Request"]
         Auth["Clerk Auth"]
         Router["Hono Router"]
         Validate["Zod Validation"]
         Context["Org Context"]
         Logic["Business Logic"]
-        
+        DO["Durable Objects"]
+        DB["Neon Postgres"]
+        R2["R2 Storage"]
+        Response["Type-safe Response"]
+
+        Request --> Auth
         Auth --> Router
         Router --> Validate
         Validate --> Context
         Context --> Logic
+        Logic --> DO
+        DO --> DB
+        DB --> R2
+        R2 --> Response
     end
-
-    subgraph Storage["Storage Layer"]
-        DO["Durable Objects"]
-        DB["Turso Database"]
-        R2["R2 Storage"]
-    end
-
-    Request --> Auth
-    Logic --> DO
-    Logic --> DB
-    Logic --> R2
-    Logic --> Response
 ```
 
 **Key Features:**
@@ -120,7 +117,7 @@ graph TB
 4. Request validation with Zod
 5. Business logic execution
 6. Real-time updates via DO if needed
-7. Database operations with Turso
+7. Database operations with Neon Postgres
 8. Type-safe response generation
 
 **Technologies:**
@@ -128,7 +125,7 @@ graph TB
 - Drizzle: Type-safe SQL toolkit
 - Zod: Runtime type validation
 - Clerk: Authentication & user management
-- Turso: Edge database
+- Neon Postgres: Edge database
 
 ### Real-time Collaboration Engine
 
@@ -138,8 +135,8 @@ graph TB
 - Durable Objects: Manages WebSocket server, real-time state, and storage
 - TinyBase: Local-first data store with built-in synchronization capabilities
 - WebSockets: Real-time communication channel
-- Turso: Edge database for long-term persistence
-- LibSQL: Database client for Turso integration
+- Neon Postgres: Edge database for long-term persistence
+- pgLite: Persistent browser storage for offline capabilities
 
 **Data Flow and Local-First Architecture:**
 
@@ -148,39 +145,42 @@ graph TB
    - All user interactions first update this local store
    - Changes are tracked using TinyBase's transaction system
    - UI updates happen immediately from the local store
-   - Local changes are persisted using LibSqlPersister
+   - Local changes are persisted using pgLite in the browser
    - Works offline through TinyBase's CRDT capabilities
 
 2. **Synchronization Flow:**
    ```mermaid
    graph TB
-       subgraph Client["Browser"]
-           Local("MergeableStore")
-           WsSync("WsSynchronizer")
-           LocalDB("LibSqlPersister")
+       subgraph bg [" "]
+           style bg fill:#fffdf3,stroke:none
+           subgraph Client["Browser"]
+               Local("MergeableStore")
+               WsSync("WsSynchronizer")
+               LocalDB("pgLite Browser Storage")
+               
+               Local --> LocalDB
+               Local --> WsSync
+           end
            
-           Local --> LocalDB
-           Local --> WsSync
-       end
-       
-       subgraph Edge["Durable Object"]
-           DO("WsServerDurableObject")
-           DOStore("MergeableStore")
-           Storage("DurableObjectStoragePersister<br/>Active State Cache")
+           subgraph Edge["Durable Object"]
+               DO("WsServerDurableObject")
+               DOStore("MergeableStore")
+               Storage("DurableObjectStoragePersister<br/>Active State Cache")
+               
+               DO <-->|State| DOStore
+               DOStore <-->|Cache| Storage
+           end
            
-           DO <-->|State| DOStore
-           DOStore <-->|Cache| Storage
+           DB["Neon Postgres<br/>Source of Truth"]
+           Other("Other Clients")
+           
+           WsSync -->|1 Changes| DO
+           DO -->|2 Broadcast| Other
+           DO -->|3 Persist| DB
+           DB -->|4 HTTP Push| DO
+           DO -->|5 Update| WsSync
+           WsSync --> Local
        end
-       
-       DB["Turso Database<br/>Source of Truth"]
-       Other("Other Clients")
-       
-       WsSync -->|1 Changes| DO
-       DO -->|2 Broadcast| Other
-       DO -->|3 Persist| DB
-       DB -->|4 HTTP Push| DO
-       DO -->|5 Update| WsSync
-       WsSync --> Local
    ```
 
 3. **Step-by-Step Process:**
@@ -189,24 +189,24 @@ graph TB
       - User makes changes in the application
       - Changes are immediately applied to MergeableStore
       - UI updates instantly through TinyBase reactivity
-      - Changes are saved using LibSqlPersister
+      - Changes are persisted to browser storage using pgLite
       - Changes are queued for WsSynchronizer
 
    b. **State Management:**
       - DO's MergeableStore handles active state
       - DurableObjectStoragePersister provides fast edge caching
-      - Turso serves as the persistent source of truth
+      - Neon Postgres serves as the persistent source of truth
       - DO can recover from either storage layer based on needs
       - Storage layers have different durability guarantees:
         * DO Storage: Fast, edge-local, size-limited
-        * Turso: Durable, globally replicated, unlimited
+        * Neon Postgres: Durable, globally replicated, unlimited
       - Cache Management:
-        * DO storage is cleared on successful Turso persistence
+        * DO storage is cleared on successful Neon Postgres persistence
         * Only keeps most recent state for active sessions
-        * Automatically recovers from Turso if cache is cleared
-        * Uses Turso as backup when cache limit is reached
+        * Automatically recovers from Neon Postgres if cache is cleared
+        * Uses Neon Postgres as backup when cache limit is reached
         * Cache invalidation triggered by:
-          - Successful Turso writes
+          - Successful Neon Postgres writes
           - Storage limit warnings
           - DO instance recycling
           - Explicit cache clear commands
@@ -216,12 +216,12 @@ graph TB
       - DO applies changes to its own MergeableStore instance
       - DO broadcasts to other connected clients
       - Changes are stored in DurableObjectStoragePersister
-      - Changes are persisted to Turso via LibSqlPersister
+      - Changes are persisted to Neon Postgres for long-term storage
       - Other clients receive and apply changes to their MergeableStore
 
    d. **Database Change Handling:**
       - Each DO exposes an HTTP endpoint for database updates
-      - Turso pushes changes directly to DO's endpoint
+      - Neon Postgres pushes changes directly to DO's endpoint
       - DO updates its MergeableStore with received changes
       - Changes are automatically broadcast to connected clients
       - No polling or additional services required
@@ -229,17 +229,17 @@ graph TB
 
    e. **Offline and Recovery:**
       - Changes continue in local MergeableStore when offline
-      - All changes are stored in LibSqlPersister
+      - All changes are persisted to browser storage using pgLite
       - Upon reconnection, WsSynchronizer automatically syncs
       - Conflicts are resolved using TinyBase's CRDT system
-      - DOs can recover state from either Storage or Turso
+      - DOs can recover state from either Storage or Neon Postgres
 
    f. **State Recovery:**
       - New clients first load state from WsServerDurableObject
       - DO serves state from its MergeableStore instance
-      - If DO is new/empty, state loads from Turso
+      - If DO is new/empty, state loads from Neon Postgres
       - Clients receive real-time updates through WsSynchronizer
-      - LibSqlPersister provides fast access to historical data
+      - Browser-persisted state via pgLite enables fast local access
 
 ### Type Safety System
 
@@ -260,14 +260,17 @@ sequenceDiagram
     participant DB
     participant External
 
-    Client->>Router: Type-safe navigation
-    Router->>API: Type-safe request
-    API->>API: Zod validation
-    API->>DB: Drizzle query
-    DB->>API: Type-safe response
-    External->>API: Webhook event
-    API->>API: Event validation
-    API->>Client: Type-safe data
+    rect rgb(255, 253, 243)
+        Note over Client,External: System Sequence
+        Client->>Router: Type-safe navigation
+        Router->>API: Type-safe request
+        API->>API: Zod validation
+        API->>DB: Drizzle query
+        DB->>API: Type-safe response
+        External->>API: Webhook event
+        API->>API: Event validation
+        API->>Client: Type-safe data
+    end
 ```
 
 **Core Type Flow:**
@@ -417,12 +420,15 @@ sequenceDiagram
     participant Backend API
     participant R2
 
-    User->>Frontend: Initiates file upload
-    Frontend->>Backend API: Requests upload URL
-    Backend API->>R2: Generates presigned URL
-    R2->>Backend API: Returns presigned URL
-    Backend API->>Frontend: Returns presigned URL
-    Frontend->>R2: Uploads file via presigned URL
+    rect rgb(255, 253, 243)
+        Note over User,R2: File Upload Flow
+        User->>Frontend: Initiates file upload
+        Frontend->>Backend API: Requests upload URL
+        Backend API->>R2: Generates presigned URL
+        R2->>Backend API: Returns presigned URL
+        Backend API->>Frontend: Returns presigned URL
+        Frontend->>R2: Uploads file via presigned URL
+    end
 ```
 
 **Core Features:**
@@ -456,64 +462,67 @@ sequenceDiagram
 - Webhook Worker: Processes external notification triggers
 - Durable Objects: Real-time notification state and delivery
 - TinyBase: Local notification store
-- Turso: Persistent notification storage
+- Neon Postgres: Persistent notification storage
 - R2: Notification asset storage
 
 ```mermaid
 graph TB
-    subgraph Sources["Event Sources"]
-        direction TB
-        System("System Events")
-        User("User Actions")
-        External("External Services")
-        Plugin("Plugin Events")
-    end
+    subgraph bg [" "]
+        style bg fill:#fffdf3,stroke:none
+        subgraph Sources["Event Sources"]
+            direction TB
+            System("System Events")
+            User("User Actions")
+            External("External Services")
+            Plugin("Plugin Events")
+        end
 
-    subgraph Workers["Edge Workers"]
-        direction TB
-        API("API Worker")
-        Webhook("Webhook Worker")
-        R2("R2 Storage")
-    end
+        subgraph Workers["Edge Workers"]
+            direction TB
+            API("API Worker")
+            Webhook("Webhook Worker")
+            R2("R2 Storage")
+        end
 
-    subgraph RealTime["Real-time Layer"]
-        direction TB
-        NotifDO("NotificationDO")
-        DOStore("MergeableStore")
-        Storage("DO Storage")
+        subgraph RealTime["Real-time Layer"]
+            direction TB
+            NotifDO("NotificationDO")
+            DOStore("MergeableStore")
+            Storage("DO Storage")
+            
+            NotifDO <--> DOStore
+            DOStore <--> Storage
+        end
+
+        subgraph Persistence["Storage Layer"]
+            direction TB
+            DB["Neon Postgres"]
+        end
+
+        subgraph Delivery["React Client Layer"]
+            direction TB
+            WS("WsSynchronizer")
+            UI("React Components")
+            Push("Push Service")
+            Email("Email Service")
+            
+            WS --> UI
+        end
+
+        System --> API
+        User --> API
+        External --> Webhook
+        Plugin --> API
         
-        NotifDO <--> DOStore
-        DOStore <--> Storage
-    end
-
-    subgraph Persistence["Storage Layer"]
-        direction TB
-        DB("Turso Database")
-    end
-
-    subgraph Delivery["React Client Layer"]
-        direction TB
-        WS("WsSynchronizer")
-        UI("React Components")
-        Push("Push Service")
-        Email("Email Service")
+        Webhook --> API
+        API --> NotifDO
+        API --> R2
+        API --> DB
         
-        WS --> UI
+        NotifDO --> WS
+        NotifDO --> Push
+        API --> Email
     end
-
-    System --> API
-    User --> API
-    External --> Webhook
-    Plugin --> API
-    
-    Webhook --> API
-    API --> NotifDO
-    API --> R2
-    API --> DB
-    
-    NotifDO --> WS
-    NotifDO --> Push
-    API --> Email
 ```
 
 **React Client Architecture:**
@@ -527,7 +536,7 @@ graph TB
 - **State Management:**
   * TinyBase store with notification tables
   * React hooks for real-time updates
-  * Local persistence via LibSqlPersister
+  * Local persistence via pgLite
   * Optimistic UI updates
   * Shared WebSocket connection
 
@@ -559,31 +568,34 @@ graph TB
 
 ```mermaid
 graph LR
-    subgraph External["External Services"]
-        Auth("Auth Provider")
-        Payment("Payment Provider")
-        Other("Other Services")
-    end
+    subgraph bg [" "]
+        style bg fill:#fffdf3,stroke:none
+        subgraph External["External Services"]
+            Auth("Auth Provider")
+            Payment("Payment Provider")
+            Other("Other Services")
+        end
 
-    subgraph Workers["Edge Workers"]
-        Webhook("Webhook Worker")
-        API("API Worker")
-        R2("R2 Storage")
-    end
+        subgraph Workers["Edge Workers"]
+            Webhook("Webhook Worker")
+            API("API Worker")
+            R2("R2 Storage")
+        end
 
-    subgraph Core["Core System"]
-        DO("Durable Objects")
-        DB("Database")
-    end
+        subgraph Core["Core System"]
+            DO("Durable Objects")
+            DB("Database")
+        end
 
-    Auth -->|Auth Events| Webhook
-    Payment -->|Payment Events| Webhook
-    Other -->|Service Events| Webhook
-    
-    Webhook -->|Validate & Process| API
-    API -->|2a Update| DB
-    API -->|2b Notify| DO
-    API -->|2c Store Files| R2
+        Auth -->|Auth Events| Webhook
+        Payment -->|Payment Events| Webhook
+        Other -->|Service Events| Webhook
+        
+        Webhook -->|Validate & Process| API
+        API -->|2a Update| DB
+        API -->|2b Notify| DO
+        API -->|2c Store Files| R2
+    end
 ```
 
 ## Implementation Details
@@ -593,16 +605,19 @@ graph LR
 **Local Setup:**
 ```mermaid
 sequenceDiagram
-    participant Dev
-    participant Workers
-    participant DB
-    participant Storage
+    rect rgb(255, 253, 243)
+        Note over Dev,Storage: Local Development Flow
+        participant Dev
+        participant Workers
+        participant DB
+        participant Storage
 
-    Dev->>Workers: pnpm run dev
-    Workers->>DB: Connect to local Turso
-    Workers->>Storage: Connect to R2
-    Dev->>Workers: Make changes
-    Workers-->>Dev: Hot reload
+        Dev->>Workers: pnpm run dev
+        Workers->>DB: Connect to local Neon Postgres
+        Workers->>Storage: Connect to R2
+        Dev->>Workers: Make changes
+        Workers-->>Dev: Hot reload
+    end
 ```
 
 **Key Commands:**
@@ -663,23 +678,26 @@ apps/
 
 ```mermaid
 sequenceDiagram
-    participant PR
-    participant CI
-    participant CD
-    participant Prod
+    rect rgb(255, 253, 243)
+        Note over PR,Prod: CI/CD Pipeline Flow
+        participant PR
+        participant CI
+        participant CD
+        participant Prod
 
-    PR->>CI: Open PR
-    CI->>CI: Lint & Type Check
-    CI->>CI: Unit Tests
-    CI->>CI: Integration Tests
-    CI-->>PR: Status Update
-    
-    PR->>CD: Merge to Main
-    CD->>CD: E2E Tests
-    CD->>CD: Performance Tests
-    CD->>CD: Security Scan
-    CD->>Prod: Deploy
-    Prod-->>CD: Verify
+        PR->>CI: Open PR
+        CI->>CI: Lint & Type Check
+        CI->>CI: Unit Tests
+        CI->>CI: Integration Tests
+        CI-->>PR: Status Update
+        
+        PR->>CD: Merge to Main
+        CD->>CD: E2E Tests
+        CD->>CD: Performance Tests
+        CD->>CD: Security Scan
+        CD->>Prod: Deploy
+        Prod-->>CD: Verify
+    end
 ```
 
 ## Tenancy Architecture
@@ -741,34 +759,37 @@ Each model provides different resource management approaches:
 
 ```mermaid
 graph LR
-    subgraph Internal["Internal Model"]
-        Users[("User Table")]
-        Auth["Auth System"]
-        Resources["Shared Resources"]
-    end
+    subgraph bg [" "]
+        style bg fill:#fffdf3,stroke:none
+        subgraph Internal["Internal Model"]
+            Users[("User Table")]
+            Auth["Auth System"]
+            Resources["Shared Resources"]
+        end
 
-    subgraph Single["Single Tenant"]
-        User1["User 1 Data"]
-        User2["User 2 Data"]
-        Config1["User 1 Config"]
-        Config2["User 2 Config"]
-    end
+        subgraph Single["Single Tenant"]
+            User1["User 1 Data"]
+            User2["User 2 Data"]
+            Config1["User 1 Config"]
+            Config2["User 2 Config"]
+        end
 
-    subgraph Multi["Multi Tenant"]
-        Org1["Organization 1"]
-        Org2["Organization 2"]
-        Teams1["Teams"]
-        Teams2["Teams"]
-    end
+        subgraph Multi["Multi Tenant"]
+            Org1["Organization 1"]
+            Org2["Organization 2"]
+            Teams1["Teams"]
+            Teams2["Teams"]
+        end
 
-    Users --> Auth
-    Auth --> Resources
-    
-    User1 --> Config1
-    User2 --> Config2
-    
-    Org1 --> Teams1
-    Org2 --> Teams2
+        Users --> Auth
+        Auth --> Resources
+        
+        User1 --> Config1
+        User2 --> Config2
+        
+        Org1 --> Teams1
+        Org2 --> Teams2
+    end
 ```
 
 
@@ -780,60 +801,4 @@ graph LR
 
 **Key Technologies:** TypeScript, well-defined interfaces.
 
-```mermaid
-graph TB
-    Registry("Plugin Registry")
-    
-    subgraph Extensions["Plugin Types"]
-        Backend("Backend Extensions")
-        Frontend("Frontend Extensions")
-    end
-    
-    Registry -->|Register| Backend
-    Registry -->|Register| Frontend
 ```
-
-The plugin system will provide extension points for both backend and frontend functionality, with a central registry for managing plugins.
-
-## Alignment with Goals and Metrics
-
-### Technical Excellence
-- **Edge Computing:** Achieved through Cloudflare Workers
-- **Type Safety:** Comprehensive TypeScript usage
-- **Testing:** Extensive test coverage
-- **Performance:** Sub-100ms response times
-- **Security:** Multi-layered security model
-
-### User Experience
-- **Real-time:** Instant updates via WebSocket
-- **Offline:** Local-first architecture
-- **Performance:** Edge-optimized responses
-- **Reliability:** Multi-layer redundancy
-- **Security:** Enterprise-grade security
-
-### Business Impact
-- **Scalability:** Edge-native architecture
-- **Reliability:** 99.99% uptime target
-- **Cost:** Pay-per-use model
-- **Time-to-Market:** Rapid deployment
-- **Extensibility:** Plugin system
-
-## Conclusion
-
-This architecture provides a robust foundation for building a scalable, real-time collaborative platform:
-
-### Key Strengths
-- Edge-first design for global performance
-- Real-time collaboration capabilities
-- Strong security and isolation
-- Extensive monitoring and observability
-- Comprehensive development tooling
-
-### Future Directions
-- Enhanced plugin ecosystem
-- Advanced analytics capabilities
-- Extended offline capabilities
-- Improved development experience
-- Enhanced monitoring tools
-
-The architecture successfully balances technical excellence, user experience, and business impact, providing a solid foundation for future growth and innovation.

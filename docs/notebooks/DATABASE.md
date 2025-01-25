@@ -1,175 +1,186 @@
-# Database Architecture
+# Database Documentation
 
 ## Overview
 
-The application uses [Turso](https://turso.tech) as its database, with [Drizzle ORM](https://orm.drizzle.team) for type-safe database operations. The database layer is structured to provide:
+This project uses [Neon](https://neon.tech) as the database provider and [Drizzle ORM](https://orm.drizzle.team) for database operations. The setup is optimized for edge environments.
 
-- Type-safe database operations using Drizzle ORM
-- Connection pooling and efficient resource management
-- Consistent error handling and logging
-- Service-based architecture for database operations
+## Configuration
 
-## Core Components
+The database connection is configured using the `NEON_DATABASE_URL` environment variable. This should be set in your `.dev.vars` file for local development.
 
-### 1. Database Client
+**Important**: For migrations, use the direct database URL (without `-pooler` suffix) to avoid connection issues.
 
-We use `@libsql/client` for the raw database connection and `drizzle-orm/libsql` for ORM functionality:
+## Migrations
 
-```typescript
-import { createClient } from '@libsql/client'
-import { drizzle } from 'drizzle-orm/libsql'
+We use Drizzle Kit for managing database migrations. The following commands are available:
 
-export function createDatabase(context: HonoContext) {
-  const client = createClient({
-    url: context.env.TURSO_DATABASE_URL,
-    authToken: context.env.TURSO_AUTH_TOKEN
-  })
-
-  return drizzle(client, { schema: { members, organizations } })
-}
-```
-
-### 2. Schema Definition
-
-Schemas are defined using Drizzle's type-safe schema builders:
-
-```typescript
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
-
-export const members = sqliteTable('members', {
-  id: text('id').primaryKey(),
-  organization_id: text('organization_id').notNull(),
-  user_id: text('user_id').notNull(),
-  role: text('role', { enum: ['owner', 'admin', 'member'] }).notNull(),
-  created_at: text('created_at').notNull(),
-  updated_at: text('updated_at').notNull()
-})
-
-export type Member = typeof members.$inferSelect
-```
-
-### 3. Service Layer
-
-Services encapsulate database operations with proper error handling and logging:
-
-```typescript
-export class BaseService {
-  protected db: LibSQLDatabase<typeof schema>
-  protected logger: Logger
-
-  constructor(config: ServiceConfig) {
-    this.db = config.context.env.db
-    this.logger = config.logger
-  }
-
-  protected async query<T>(fn: () => Promise<T>): Promise<T> {
-    try {
-      return await fn()
-    } catch (error) {
-      this.logError('Database query failed', error)
-      throw new DatabaseError('Database query failed', error)
-    }
-  }
-}
-```
-
-## Usage Examples
-
-### 1. Basic Queries
-
-```typescript
-// Select
-const users = await db.select().from(members).where(eq(members.organization_id, orgId))
-
-// Insert
-const [member] = await db.insert(members).values({
-  id: generateId(),
-  organization_id: orgId,
-  user_id: userId,
-  role: 'member',
-  created_at: now,
-  updated_at: now
-}).returning()
-
-// Update
-const [updated] = await db.update(members)
-  .set({ role: 'admin', updated_at: now })
-  .where(eq(members.id, memberId))
-  .returning()
-
-// Delete
-await db.delete(members).where(eq(members.id, memberId))
-```
-
-### 2. Health Checks
-
-The application includes a health check endpoint that verifies database connectivity:
-
-```typescript
-app.get('/api/health', async (c) => {
-  try {
-    const [result] = await c.env.db
-      .select({ one: sql`1` })
-      .from(sql`(SELECT 1) as test`)
-    return c.json({ 
-      status: 'healthy', 
-      database: 'connected',
-      result 
-    })
-  } catch (error) {
-    return c.json({ 
-      status: 'unhealthy', 
-      database: 'disconnected',
-      error: String(error) 
-    }, 500)
-  }
-})
-```
-
-## Best Practices
-
-1. **Type Safety**
-   - Use Drizzle's schema definitions for type-safe queries
-   - Leverage TypeScript inference with `$inferSelect` and `$inferInsert` types
-   - Define explicit types for service inputs and outputs
-
-2. **Error Handling**
-   - Wrap database operations in try/catch blocks
-   - Use the `DatabaseError` class for consistent error handling
-   - Include proper error context in logs
-
-3. **Query Building**
-   - Use Drizzle's query builders instead of raw SQL when possible
-   - Leverage SQL template literals for complex queries
-   - Chain query methods for readability
-
-4. **Connection Management**
-   - Initialize database connections through middleware
-   - Use the connection from context in services
-   - Properly handle connection errors
-
-## Environment Setup
-
-Required environment variables:
 ```bash
-TURSO_DATABASE_URL=libsql://your-database-url
-TURSO_AUTH_TOKEN=your-auth-token
+# Generate new migrations based on schema changes
+pnpm run db:generate
+
+# Push schema changes directly to the database
+pnpm run db:push
+
+# Run migrations using drizzle-orm
+pnpm run db:migrate
+
+# Inspect current database schema
+pnpm run db:inspect
+
+# View and manage database with Drizzle Studio
+pnpm run db:studio
 ```
 
-## Common Issues
+### Migration Process
 
-1. **Connection Errors**
-   - Verify environment variables are set correctly
-   - Check network connectivity to Turso
-   - Ensure auth token has proper permissions
+1. Make changes to your schema files in `src/db/schema/`
+2. Generate a new migration:
+   ```bash
+   pnpm run db:generate
+   ```
+3. Review the generated SQL in `src/db/migrations/`
+4. Apply the migration:
+   ```bash
+   pnpm run db:migrate
+   ```
 
-2. **Query Errors**
-   - Verify schema matches database structure
-   - Check for proper table and column names
-   - Ensure data types match schema definitions
+### Clearing the Database
 
-3. **Type Errors**
-   - Update schema definitions if database structure changes
-   - Use proper type inference from schema
-   - Check service method signatures match schema types
-``` 
+To completely clear the database and start fresh:
+
+1. Empty the schema files (but keep them so Drizzle can find them):
+   ```typescript
+   // schema/users.ts
+   // Schema temporarily removed
+
+   // schema/user_data.ts
+   // Schema temporarily removed
+   ```
+
+2. Run db:push with the --schema flag to sync the empty schema:
+   ```bash
+   pnpm run db:push -- --schema
+   ```
+   This will drop all tables and their dependent objects (including enums) due to CASCADE.
+
+3. After clearing, restore your schema files with the proper definitions.
+
+## Schema
+
+### Users Table
+
+The users table stores user information synced from Clerk:
+
+```typescript
+export const users = pgTable('users', {
+  id: text('id').primaryKey().notNull(),
+  email: text('email').notNull(),
+  username: text('username'),
+  firstName: text('first_name'),
+  lastName: text('last_name'),
+  imageUrl: text('image_url'),
+  externalId: text('external_id'),
+  publicMetadata: text('public_metadata'),
+  privateMetadata: text('private_metadata'),
+  unsafeMetadata: text('unsafe_metadata'),
+  lastSignInAt: timestamp('last_sign_in_at', { mode: 'string' }),
+  role: text('role').default('cashier').notNull(),
+  status: text('status').default('active').notNull(),
+  clerkId: text('clerk_id').notNull().unique(),
+  createdAt: timestamp('created_at', { mode: 'string' }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow().notNull(),
+})
+```
+
+### User Data Table
+
+The user_data table stores additional metadata for users:
+
+```typescript
+export const userData = pgTable('user_data', {
+  id: text('id').primaryKey().notNull(),
+  userId: text('user_id').notNull().references(() => users.id),
+  key: text('key').notNull(),
+  value: text('value').notNull(),
+  createdAt: timestamp('created_at', { mode: 'string' }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow().notNull(),
+})
+```
+
+## Validation
+
+We use Zod for schema validation:
+
+```typescript
+export const insertUserSchema = z.object({
+  email: z.string().email(),
+  firstName: z.string().min(2),
+  lastName: z.string().min(2),
+  role: userRoleSchema,
+  status: userStatusSchema,
+  clerkId: z.string(),
+})
+
+export const selectUserSchema = z.object({
+  ...insertUserSchema.shape,
+  id: z.string(),
+  imageUrl: z.string().nullable(),
+  username: z.string().nullable(),
+  externalId: z.string().nullable(),
+  publicMetadata: z.string().nullable(),
+  privateMetadata: z.string().nullable(),
+  unsafeMetadata: z.string().nullable(),
+  lastSignInAt: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+```
+
+## Usage
+
+Database operations are performed through service classes. Example:
+
+```typescript
+const userService = new UserService(context)
+const user = await userService.getUser(id)
+```
+
+## Development
+
+1. Set up your Neon database and get the connection URL
+2. Add the URL to your `.dev.vars`:
+   ```
+   NEON_DATABASE_URL=postgres://user:pass@host/database
+   ```
+3. Generate and run migrations:
+   ```bash
+   pnpm run db:generate
+   pnpm run db:migrate
+   ```
+
+# Database Management
+
+## Dropping Tables in Neon
+
+To completely drop and recreate tables in Neon using Drizzle:
+
+1. Comment out all table definitions in your schema files (e.g. `schema/users.ts`, `schema/user_data.ts`)
+2. Run `pnpm run db:push -- --schema` to drop all tables
+3. Uncomment and update your schema files with the desired changes
+4. Run `pnpm run db:generate` to generate a new migration
+5. Run `pnpm run db:push` to create the tables with the new schema
+
+Note: The `--schema` flag with `db:push` is crucial as it tells Drizzle to synchronize the database schema with your current schema definition, including dropping tables that are not defined in the schema.
+
+## Migration Commands
+
+- `pnpm run db:generate` - Generate new migrations
+- `pnpm run db:push` - Apply schema changes to the database
+- `pnpm run db:push -- --schema` - Sync database schema (including dropping tables)
+
+## Important Notes
+
+- Always backup your data before dropping tables in production
+- The `--schema` flag will drop all tables not defined in your schema
+- For Neon databases, use `drizzle-kit push:pg` instead of migrations when possible
+- When using pooled connections (e.g. `-pooler` in connection string), some operations may fail - use direct connections for schema changes 
