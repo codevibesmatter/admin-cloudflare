@@ -61,9 +61,46 @@ app.use('*', async (c, next) => {
   }
 })
 
+// Development-only endpoints
+app.use('/api/dev/*', async (c, next) => {
+  if (c.env.ENVIRONMENT !== 'development') {
+    return c.json({ error: 'Development endpoints only available in development' }, 403)
+  }
+  await next()
+})
+
+app.get('/api/dev/env', (c) => {
+  return c.json({
+    env: {
+      ENVIRONMENT: c.env.ENVIRONMENT,
+      hasClerkKey: !!c.env.CLERK_SECRET_KEY,
+      hasDbUrl: !!c.env.NEON_DATABASE_URL,
+      nodeEnv: process.env.NODE_ENV,
+      envKeys: Object.keys(c.env)
+    }
+  })
+})
+
+app.get('/api/dev/clerk-key', (c) => {
+  return c.json({ key: c.env.CLERK_SECRET_KEY })
+})
+
 // Mount routes
 app.route('/api/users', userRoutes)
 app.route('/api/webhooks/clerk', clerkWebhook)
+
+// Root endpoint for debugging
+app.get('/', (c) => {
+  return c.json({
+    message: 'API is running',
+    env: c.env.ENVIRONMENT
+  })
+})
+
+// Health check endpoint (no auth required)
+app.get('/health', (c) => {
+  return c.json({ status: 'ok' }, 200)
+})
 
 // Health check
 app.get('/api/health', async (c) => {

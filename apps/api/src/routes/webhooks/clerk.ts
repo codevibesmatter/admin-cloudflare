@@ -16,11 +16,6 @@ app.post('/', async (c) => {
     return c.json({ message: 'Missing webhook secret' }, 500)
   }
 
-  console.log('Context:', {
-    env: c.env,
-    hasLogger: !!c.env.logger,
-  })
-
   const payload = await c.req.json()
   const userSync = new UserSyncService({ context: c })
 
@@ -39,4 +34,4 @@ app.post('/', async (c) => {
   return c.json({ success: true })
 })
 
-export default app 
+export default app

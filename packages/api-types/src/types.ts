@@ -6,7 +6,7 @@ export interface User {
   email: string
   firstName: string
   lastName: string
-  role: 'superadmin' | 'admin' | 'manager' | 'cashier'
+  role: 'super_admin' | 'admin' | 'user'
   status: 'active' | 'inactive' | 'invited' | 'suspended'
   clerkId?: string
   createdAt: string
@@ -14,7 +14,7 @@ export interface User {
 }
 
 // Schema types
-export const userRoleSchema = z.enum(['superadmin', 'admin', 'manager', 'cashier'])
+export const userRoleSchema = z.enum(['super_admin', 'admin', 'user'])
 export const userStatusSchema = z.enum(['active', 'inactive', 'invited', 'suspended'])
 
 export const userCreateSchema = z.object({
@@ -37,4 +37,4 @@ export interface GetUsersResponse {
   meta: {
     timestamp: string
   }
-} 
+}

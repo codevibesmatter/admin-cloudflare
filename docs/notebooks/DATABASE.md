@@ -2,13 +2,137 @@
 
 ## Overview
 
-This project uses [Neon](https://neon.tech) as the database provider and [Drizzle ORM](https://orm.drizzle.team) for database operations. The setup is optimized for edge environments.
+This project uses [Neon](https://neon.tech) as the database provider and [Drizzle ORM](https://orm.drizzle.team) for database operations. The setup is optimized for edge environments using Neon's HTTP driver.
+
+## Branch Strategy
+
+We maintain three database branches for different environments:
+
+1. **Main Branch** (Production)
+   - Branch Name: `main`
+   - Default branch for production use
+   - Endpoint: `ep-fancy-cake-a5v0yuis.us-east-2.aws.neon.tech`
+
+2. **Development Branch** (Staging)
+   - Branch Name: `development`
+   - Used for staging environment on edge
+   - Endpoint: `ep-purple-night-a5uwyif9.us-east-2.aws.neon.tech`
+   - Used in Cloudflare Workers staging environment
+
+3. **Local Branch**
+   - Branch Name: `local`
+   - Used for local development
+   - Endpoint: `ep-weathered-brook-a58668l1.us-east-2.aws.neon.tech`
+   - Connection string in `.dev.vars`
+
+### Environment Configuration
+
+Each environment uses its own database branch:
+
+```bash
+# Local Development (.dev.vars)
+NEON_DATABASE_URL="postgresql://neondb_owner:***@ep-weathered-brook-a58668l1.us-east-2.aws.neon.tech/elevra-next?sslmode=require"
+
+# Staging (Cloudflare Workers)
+NEON_DATABASE_URL="postgresql://neondb_owner:***@ep-purple-night-a5uwyif9.us-east-2.aws.neon.tech/elevra-next?sslmode=require"
+
+# Production
+NEON_DATABASE_URL="postgresql://neondb_owner:***@ep-fancy-cake-a5v0yuis.us-east-2.aws.neon.tech/elevra-next?sslmode=require"
+```
+
+### Branch Management
+
+To create a new branch:
+```bash
+neonctl branches create -p orange-sun-49249012 --name <branch-name>
+```
+
+To list all branches:
+```bash
+neonctl branches list -p orange-sun-49249012
+```
+
+To get connection info for a branch:
+```bash
+neonctl connection-string -p orange-sun-49249012 --branch-name <branch-name>
+```
+
+## Architecture
+
+### Database Service Layer
+
+The database implementation follows a service-based architecture:
+
+```typescript
+// Base service with common functionality
+class BaseService {
+  protected db: Database
+  protected context: Context<AppBindings>
+  protected logger: Logger
+
+  protected async query<T>(
+    fn: (db: Database) => Promise<T>,
+    queryContext: Record<string, unknown>
+  ): Promise<T>
+
+  protected async transaction<T>(
+    fn: (tx: NeonHttpDatabase) => Promise<T>,
+    transactionContext: Record<string, unknown>
+  ): Promise<T>
+}
+
+// Domain-specific service example
+class UserService extends BaseService {
+  async createUser(data: NewUser): Promise<User>
+  async getUserById(id: string): Promise<User>
+  async updateUser(id: string, data: Partial<User>): Promise<User>
+  // ... more methods
+}
+```
+
+### Error Handling
+
+Custom error types for better error handling:
+
+```typescript
+class DatabaseError extends Error {
+  constructor(
+    message: string,
+    public cause: unknown,
+    public context: Record<string, unknown>
+  )
+}
+
+class QueryError extends DatabaseError {}
+class TransactionError extends DatabaseError {}
+```
+
+### Logging
+
+The database layer uses structured logging via Pino:
+
+```typescript
+// Query execution
+logger.debug('Executing database query', { 
+  operation: 'getUserById',
+  userId: '123'
+})
+
+// Error logging
+logger.error('Database query error', {
+  operation: 'createUser',
+  code: 'P2002',
+  message: 'Unique constraint violation'
+})
+```
 
 ## Configuration
 
 The database connection is configured using the `NEON_DATABASE_URL` environment variable. This should be set in your `.dev.vars` file for local development.
 
-**Important**: For migrations, use the direct database URL (without `-pooler` suffix) to avoid connection issues.
+**Important**: 
+- For migrations, use the direct database URL (without `-pooler` suffix)
+- For edge environments, we use the Neon HTTP driver instead of the traditional PostgreSQL driver
 
 ## Migrations
 
@@ -99,7 +223,9 @@ The user_data table stores additional metadata for users:
 ```typescript
 export const userData = pgTable('user_data', {
   id: text('id').primaryKey().notNull(),
-  userId: text('user_id').notNull().references(() => users.id),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
   key: text('key').notNull(),
   value: text('value').notNull(),
   createdAt: timestamp('created_at', { mode: 'string' }).defaultNow().notNull(),
@@ -107,80 +233,33 @@ export const userData = pgTable('user_data', {
 })
 ```
 
-## Validation
+## Best Practices
 
-We use Zod for schema validation:
+1. **Error Handling**
+   - Always use the custom error types (`DatabaseError`, `QueryError`, `TransactionError`)
+   - Include relevant context in error objects
+   - Log errors with appropriate context
 
-```typescript
-export const insertUserSchema = z.object({
-  email: z.string().email(),
-  firstName: z.string().min(2),
-  lastName: z.string().min(2),
-  role: userRoleSchema,
-  status: userStatusSchema,
-  clerkId: z.string(),
-})
+2. **Logging**
+   - Use debug level for query execution
+   - Use info level for successful operations
+   - Use error level for failures
+   - Include operation name and relevant IDs in context
 
-export const selectUserSchema = z.object({
-  ...insertUserSchema.shape,
-  id: z.string(),
-  imageUrl: z.string().nullable(),
-  username: z.string().nullable(),
-  externalId: z.string().nullable(),
-  publicMetadata: z.string().nullable(),
-  privateMetadata: z.string().nullable(),
-  unsafeMetadata: z.string().nullable(),
-  lastSignInAt: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-})
-```
+3. **Transactions**
+   - Use transactions for multi-step operations
+   - Always handle rollback in error cases
+   - Include transaction context for debugging
 
-## Usage
-
-Database operations are performed through service classes. Example:
-
-```typescript
-const userService = new UserService(context)
-const user = await userService.getUser(id)
-```
-
-## Development
-
-1. Set up your Neon database and get the connection URL
-2. Add the URL to your `.dev.vars`:
-   ```
-   NEON_DATABASE_URL=postgres://user:pass@host/database
-   ```
-3. Generate and run migrations:
-   ```bash
-   pnpm run db:generate
-   pnpm run db:migrate
-   ```
-
-# Database Management
-
-## Dropping Tables in Neon
-
-To completely drop and recreate tables in Neon using Drizzle:
-
-1. Comment out all table definitions in your schema files (e.g. `schema/users.ts`, `schema/user_data.ts`)
-2. Run `pnpm run db:push -- --schema` to drop all tables
-3. Uncomment and update your schema files with the desired changes
-4. Run `pnpm run db:generate` to generate a new migration
-5. Run `pnpm run db:push` to create the tables with the new schema
-
-Note: The `--schema` flag with `db:push` is crucial as it tells Drizzle to synchronize the database schema with your current schema definition, including dropping tables that are not defined in the schema.
+4. **Edge Optimization**
+   - Use Neon's HTTP driver for edge compatibility
+   - Keep transactions short and focused
+   - Handle connection errors appropriately
 
 ## Migration Commands
 
 - `pnpm run db:generate` - Generate new migrations
-- `pnpm run db:push` - Apply schema changes to the database
-- `pnpm run db:push -- --schema` - Sync database schema (including dropping tables)
-
-## Important Notes
-
-- Always backup your data before dropping tables in production
-- The `--schema` flag will drop all tables not defined in your schema
-- For Neon databases, use `drizzle-kit push:pg` instead of migrations when possible
-- When using pooled connections (e.g. `-pooler` in connection string), some operations may fail - use direct connections for schema changes 
+- `pnpm run db:push` - Push schema changes to database
+- `pnpm run db:migrate` - Run pending migrations
+- `pnpm run db:studio` - Open Drizzle Studio
+- `pnpm run db:inspect` - Inspect database schema

@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@clerk/backend':
+        specifier: ^1.21.4
+        version: 1.21.4(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       hono:
         specifier: 4.6.15
         version: 4.6.15
@@ -18,6 +21,9 @@ importers:
       prettier:
         specifier: ^3.1.0
         version: 3.4.2
+      tsx:
+        specifier: ^4.19.2
+        version: 4.19.2
       turbo:
         specifier: latest
         version: 2.3.4
@@ -507,6 +513,7 @@ packages:
   '@clerk/clerk-sdk-node@5.1.4':
     resolution: {integrity: sha512-ZpY4EnBQhWmGCZuc6tUEYDifhK31ZvAZbli7/s7Bnqv7DNib5vTUbStNiDcA+45NrZ9ID5qr0J3S85V8GmFw3A==}
     engines: {node: '>=18.17.0'}
+    deprecated: 'January 10 2025 marks the end of support for @clerk/clerk-sdk-node as previously announced in our October 2024 deprecation notice. Express users can migrate to the @clerk/express package. For more information, you can find our changelog here: https://clerk.com/changelog/2025-01-10-node-sdk-eol'
 
   '@clerk/shared@2.20.4':
     resolution: {integrity: sha512-1ndGEO+NejIMFkl47DCeSpVv3nmKh9BHD6wt2Sl3X1wv7sj3eWzSVC14Exkag7D8Og2VcN4LXOFLErsCXHS+YQ==}
@@ -4327,6 +4334,7 @@ packages:
   wrangler@3.100.0:
     resolution: {integrity: sha512-+nsZK374Xnp2BEQQuB/18pnObgsOey0AHVlg75pAdwNaKAmB2aa0/E5rFb7i89DiiwFYoZMz3cARY1UKcm/WQQ==}
     engines: {node: '>=16.17.0'}
+    deprecated: Downgrade to 3.99.0
     hasBin: true
     peerDependencies:
       '@cloudflare/workers-types': ^4.20241230.0

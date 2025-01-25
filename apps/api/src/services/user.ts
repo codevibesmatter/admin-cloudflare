@@ -36,7 +36,7 @@ export class UserService {
       .insert(users)
       .values({
         ...data,
-        role: data.role || 'cashier',
+        role: data.role || 'user',
         status: data.status || 'active'
       })
       .returning()
@@ -56,8 +56,10 @@ export class UserService {
   }
 
   async deleteUser(id: string) {
-    await this.context.env.db
+    const [user] = await this.context.env.db
       .delete(users)
       .where(eq(users.id, id))
+      .returning()
+    return user
   }
-} 
+}

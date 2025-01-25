@@ -1,20 +1,52 @@
+import pino from 'pino'
 import type { LogContext, Logger } from '../types/logger'
 
+// Configure Pino logger
+const pinoLogger = pino({
+  level: 'debug',
+  base: undefined,
+  formatters: {
+    level: (label) => {
+      return { level: label.toUpperCase() }
+    },
+    bindings: () => ({})
+  },
+  timestamp: () => `,"time":"${new Date(Date.now()).toISOString()}"`,
+  transport: {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      levelFirst: true,
+      translateTime: false,
+      ignore: 'pid,hostname,time',
+      messageFormat: '{levelLabel} {msg} {context}',
+      customPrettifiers: {
+        time: (timestamp: string) => timestamp.slice(11, 23),
+        level: (level: string) => level.padEnd(5),
+        context: (context: unknown) => {
+          if (!context) return ''
+          return JSON.stringify(context, null, 2)
+        }
+      }
+    }
+  }
+})
+
 class WorkerLogger implements Logger {
-  error(message: string, context?: LogContext): void {
-    console.error(JSON.stringify({ level: 'error', message, ...context }))
+  debug(message: string, context?: LogContext) {
+    pinoLogger.debug({ context }, message)
   }
 
-  warn(message: string, context?: LogContext): void {
-    console.warn(JSON.stringify({ level: 'warn', message, ...context }))
+  info(message: string, context?: LogContext) {
+    pinoLogger.info({ context }, message)
   }
 
-  info(message: string, context?: LogContext): void {
-    console.info(JSON.stringify({ level: 'info', message, ...context }))
+  warn(message: string, context?: LogContext) {
+    pinoLogger.warn({ context }, message)
   }
 
-  debug(message: string, context?: LogContext): void {
-    console.debug(JSON.stringify({ level: 'debug', message, ...context }))
+  error(message: string, context?: LogContext) {
+    pinoLogger.error({ context }, message)
   }
 }
 
@@ -50,26 +82,25 @@ interface ClerkWebhookEventAttributes {
 
 interface ClerkWebhookPayload {
   data: ClerkWebhookData
-  event_attributes: ClerkWebhookEventAttributes
-  object: 'event'
-  timestamp: number
+  object: string
   type: string
+  event_attributes?: ClerkWebhookEventAttributes
+  timestamp: number
 }
 
 // Utility function for webhook payload formatting
 export function formatWebhookPayload(payload: unknown): ClerkWebhookPayload | string {
-  if (typeof payload !== 'string') {
-    return JSON.stringify(payload)
-  }
-  
-  try {
-    const parsed = JSON.parse(payload)
-    if (!parsed?.data || typeof parsed.data !== 'object') {
-      throw new Error('Invalid webhook payload format')
-    }
+  if (typeof payload === 'string') {
+    try {
+      const parsed = JSON.parse(payload)
+      if (!parsed?.data || typeof parsed.data !== 'object') {
+        throw new Error('Invalid webhook payload format')
+      }
 
-    return parsed as ClerkWebhookPayload
-  } catch {
-    return payload.length > 100 ? `${payload.slice(0, 100)}...` : payload
+      return parsed as ClerkWebhookPayload
+    } catch {
+      return payload
+    }
   }
-} 
+  return payload as ClerkWebhookPayload
+}
