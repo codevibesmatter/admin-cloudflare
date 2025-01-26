@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { Context } from 'hono'
-import type { AppContext } from '../types'
+import type { AppBindings } from '../types'
 
 // Base response schema
 export const baseResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
@@ -42,33 +42,35 @@ export type ErrorResponse = {
 }
 
 // Success response factory
-export const createResponse = <T>(c: Context<AppContext>, data: T): ApiResponse<T> => {
-  return c.json({
+export const createResponse = <T>(c: Context<AppBindings>, data: T): Response => {
+  const response: ApiResponse<T> = {
     data,
     meta: {
       timestamp: new Date().toISOString()
     }
-  })
+  }
+  return c.json(response)
 }
 
 // Error response factory
 export const createErrorResponse = (
-  c: Context<AppContext>,
+  c: Context<AppBindings>,
   code: string,
   message: string,
   details?: any,
   status = 400
-): ErrorResponse => {
-  return c.json({
+): Response => {
+  const response: ErrorResponse = {
     error: {
       code,
       message,
-      ...(details && { details })
+      details
     },
     meta: {
       timestamp: new Date().toISOString()
     }
-  }, status)
+  }
+  return c.json(response, status as any)
 }
 
 // Common error codes

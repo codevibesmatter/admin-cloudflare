@@ -1,14 +1,17 @@
 import type { Context as HonoContext } from 'hono'
 import type { Database } from './db'
 import type { Logger } from './lib/logger'
+import type { Clerk } from '@clerk/backend'
 
 export interface Env {
   ENVIRONMENT: string
   NEON_DATABASE_URL: string
   CLERK_SECRET_KEY: string
+  CLERK_PUBLISHABLE_KEY: string
   CLERK_WEBHOOK_SECRET: string
   db: Database
   logger: Logger
+  clerk: Clerk
 }
 
 export interface AppContext {
@@ -27,4 +30,4 @@ export type WebhookBody = {
   type: string
 }
 
-export type { HonoContext } 
+export type { HonoContext }

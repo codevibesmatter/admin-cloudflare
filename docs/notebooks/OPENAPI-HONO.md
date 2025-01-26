@@ -14,6 +14,55 @@ Our API stack consists of:
 - **Clerk** - Authentication
 - **React Query** - Client-side data fetching
 
+## API Versioning
+
+We use header-based versioning for our API. The current version is `1`. All requests should include the `X-API-Version` header:
+
+```bash
+curl -H "X-API-Version: 1" http://localhost:8787/api/users
+```
+
+If no version is specified, the current version will be used. The API version will be included in all responses via the `X-API-Version` header.
+
+### Supported Versions
+- Version 1 (Current): `X-API-Version: 1`
+
+### Version Lifecycle
+1. All breaking changes require a new version
+2. Multiple versions can be supported simultaneously
+3. Version deprecation will be announced in advance
+
+## Authentication
+
+Authentication is handled using a simple middleware that checks for the presence of a Bearer token. The token validation is handled by Clerk on the frontend.
+
+```typescript
+// Simple auth middleware
+export async function authMiddleware(c: Context, next: () => Promise<void>) {
+  const authHeader = c.req.header('Authorization')
+  if (!authHeader?.startsWith('Bearer ')) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  await next()
+}
+```
+
+The middleware is applied to all API routes:
+
+```typescript
+// Add auth middleware to all API routes
+app.use('/api/*', authMiddleware)
+```
+
+### Authentication Flow
+
+1. All API routes require authentication via Clerk
+2. Requests must include a valid Bearer token in the Authorization header
+3. The auth middleware will:
+   - Validate the token
+   - Extract the user ID
+   - Set user context for the request
+
 ## Implementation Guide
 
 ### 1. OpenAPI Schema Definitions
@@ -181,40 +230,7 @@ app.onError((err, c) => {
 })
 ```
 
-### 5. Authentication
-
-We use Clerk for authentication:
-
-1. **Development Testing**
-
-```bash
-# Get the Clerk secret key
-CLERK_KEY=$(curl -s http://localhost:8787/api/dev/clerk-key | grep -o '"key":"[^"]*"' | cut -d'"' -f4)
-
-# Create a test user
-curl -s -X POST \
-  -H "Authorization: Bearer $CLERK_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email_address": ["test@example.com"],
-    "password": "X5tg#mP9$kL2vN4@",
-    "first_name": "Test",
-    "last_name": "User"
-  }' \
-  https://api.clerk.dev/v1/users
-
-# Get a session token
-TOKEN=$(curl -s -X POST \
-  -H "Authorization: Bearer $CLERK_KEY" \
-  -H "Content-Type: application/json" \
-  -d "{\"user_id\": \"$USER_ID\"}" \
-  https://api.clerk.dev/v1/sign_in_tokens | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
-
-# Test an authenticated endpoint
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8787/api/users
-```
-
-2. **User Synchronization**
+### 5. User Synchronization
 
 When users are created in Clerk, they are automatically synchronized to our database through the webhook handler:
 
@@ -242,29 +258,33 @@ app.post('/', async (c) => {
 
 ## Best Practices
 
-1. **Type Safety**
+1. **API Versioning**
+   - Always include version in request headers
+   - Follow semantic versioning for breaking changes
+   - Document version changes and deprecations
+
+2. **Authentication**
+   - Always use Bearer tokens
+   - Never expose sensitive data in responses
+   - Implement proper role-based access control
+
+3. **Type Safety**
    - Always use Zod schemas for validation
    - Define types in `api-types` package
    - Use shared types across frontend and backend
    - Add runtime validation where needed
 
-2. **API Design**
-   - Use consistent response formats
-   - Follow RESTful conventions
-   - Document all endpoints
-   - Handle errors gracefully
+4. **API Design**
+   - Use consistent naming conventions
+   - Follow REST principles
+   - Document all endpoints with OpenAPI
+   - Include comprehensive error handling
 
-3. **Security**
-   - Validate all input data
-   - Use proper authentication
-   - Sanitize error messages
-   - Implement rate limiting
-
-4. **Testing**
-   - Test all endpoints through Swagger UI
-   - Verify response formats
-   - Test error scenarios
-   - Check validation behavior
+5. **Testing**
+   - Write tests for all routes
+   - Include both success and error cases
+   - Test version compatibility
+   - Validate auth requirements
 
 ## Documentation
 

@@ -2,6 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi'
 import { cors } from 'hono/cors'
 import { prettyJSON } from 'hono/pretty-json'
 import { timing } from 'hono/timing'
+import { clerkMiddleware } from '@hono/clerk-auth'
 import type { Context, Next } from 'hono'
 import type { RuntimeEnv } from '../env'
 import { errorHandler } from '../middleware/error'
@@ -29,12 +30,15 @@ export const createApp = () => {
     })
     await next()
   })
+
+  // Initialize Clerk
+  app.use('/api/*', clerkMiddleware())
   
-  // Add version middleware before auth
+  // Add version middleware to all API routes
   app.use('/api/*', versionMiddleware)
 
   // Protected routes middleware
-  app.use('/api/v1/*', authMiddleware)
+  app.use('/api/*', authMiddleware)
 
   // Not found handler
   app.notFound((c) => {

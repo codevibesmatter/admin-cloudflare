@@ -9,6 +9,7 @@ import type { AppBindings } from './types'
 import userRoutes from './routes/users'
 import clerkWebhook from './routes/webhooks/clerk'
 import { logger } from './lib/logger'
+import { authMiddleware } from './middleware/auth'
 
 // Create app with proper typing
 const app = new OpenAPIHono<AppBindings>()
@@ -22,6 +23,9 @@ app.use('*', async (c, next) => {
   c.env.logger = logger
   await next()
 })
+
+// Add auth middleware
+app.use('/api/*', authMiddleware)
 
 // OpenAPI documentation
 app.doc('/api/docs', {
@@ -86,7 +90,7 @@ app.get('/api/dev/clerk-key', (c) => {
 })
 
 // Mount routes
-app.route('/api/users', userRoutes)
+app.route('/api/v1/users', userRoutes)
 app.route('/api/webhooks/clerk', clerkWebhook)
 
 // Root endpoint for debugging

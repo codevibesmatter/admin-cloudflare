@@ -1,12 +1,14 @@
 import { z } from 'zod'
-import type { User } from './types'
+import { userRoleSchema, userStatusSchema } from './types'
 
 // Client Route Types
 export type ClientRoutes = {
   '/users': {
     searchParams: {
-      status?: 'active' | 'inactive' | 'invited' | 'suspended'
-      role?: 'superadmin' | 'admin' | 'manager' | 'cashier'
+      status?: z.infer<typeof userStatusSchema>
+      role?: z.infer<typeof userRoleSchema>
+      limit?: number
+      offset?: number
     }
   }
   '/users/:id': {
@@ -49,28 +51,50 @@ export const createSearchParamsSchema = <T extends keyof ClientRoutes>(
 
 // Route Builders
 export const createTypeSafeRoute = <T extends keyof ClientRoutes>(
-  path: T,
+  route: T,
   options: {
     searchParamsSchema?: z.ZodType<SearchParams<T>>
-  }
+    paramsSchema?: z.ZodType<RouteParams<T>>
+  } = {}
 ) => {
   return {
-    path,
-    buildPath: (params: RouteParams<T>) => {
-      return path.replace(
-        /:[a-zA-Z]+/g,
-        (match) => params[match.slice(1) as keyof RouteParams<T>] as string
-      )
-    },
-    validateSearchParams: options.searchParamsSchema
-      ? (params: unknown) => options.searchParamsSchema!.parse(params)
-      : undefined
+    route,
+    searchParamsSchema: options.searchParamsSchema,
+    paramsSchema: options.paramsSchema,
+    buildPath: (options?: NavigateOptions<T>) => {
+      let path = route as string
+      if (options?.params) {
+        const params = options.params as Record<string, string>
+        Object.entries(params).forEach(([key, value]) => {
+          path = path.replace(new RegExp(`:${key}`, 'g'), value)
+        })
+      }
+      return path
+    }
   }
 }
 
-// Example Usage Types
-export type ExampleRoutes = {
-  // Users routes
-  users: ReturnType<typeof createTypeSafeRoute<'/users'>>
-  userDetails: ReturnType<typeof createTypeSafeRoute<'/users/:id'>>
-} 
+// Route Schema Definitions
+export const userSearchParamsSchema = z.object({
+  status: userStatusSchema.optional(),
+  role: userRoleSchema.optional(),
+  limit: z.number().optional(),
+  offset: z.number().optional(),
+})
+
+export const userParamsSchema = z.object({
+  id: z.string(),
+})
+
+// Route Definitions
+export const routes = {
+  users: createTypeSafeRoute('/users', {
+    searchParamsSchema: userSearchParamsSchema,
+  }),
+  userDetails: createTypeSafeRoute('/users/:id', {
+    searchParamsSchema: z.object({
+      tab: z.enum(['profile', 'settings']).optional(),
+    }),
+    paramsSchema: userParamsSchema,
+  }),
+}

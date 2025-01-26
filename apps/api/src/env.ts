@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { Database } from './db'
 import type { Logger } from './lib/logger'
+import { Clerk } from '@clerk/backend'
 
 const envSchema = z.object({
   // Database
@@ -15,7 +16,7 @@ const envSchema = z.object({
 })
 
 export type EnvSchema = z.infer<typeof envSchema>
-export type RuntimeEnv = EnvSchema & { db: Database, logger: Logger }
+export type RuntimeEnv = EnvSchema & { db: Database, logger: Logger, clerk: Clerk }
 
 export function loadEnv(env: Record<string, string | undefined>): EnvSchema {
   const result = envSchema.safeParse(env)
@@ -29,8 +30,10 @@ export function loadEnv(env: Record<string, string | undefined>): EnvSchema {
 
 // Helper to create full environment with runtime bindings
 export function createEnv(env: EnvSchema, runtime: { db: Database, logger: Logger }): RuntimeEnv {
+  const clerk = Clerk({ secretKey: env.CLERK_SECRET_KEY })
   return {
     ...env,
-    ...runtime
+    ...runtime,
+    clerk
   }
-} 
+}
